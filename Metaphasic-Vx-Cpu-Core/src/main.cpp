@@ -249,18 +249,14 @@ void SetStrips()
 {
   if (sentienceDetected)
   {
-    static flasher flasherStrip(Pattern::Sin, 1000, 255);
+    static flasher flasherStrip(Pattern::OnOff, 1000, 255);
     int colorValue = flasherStrip.getPwmValue();
-    stripSentienceDetected.fill(stripSentienceDetected.Color(colorValue, 0, 0), 0, stripSentienceDetected.numPixels());
-    //analogWrite(PIN_LED_INDICATOR, (255 / 2) + (255 / 2) * sin(radians(pwmValue)));
-
-    Serial.write(colorValue);
+    stripSentienceDetected.fill(stripSentienceDetected.Color(colorValue, 0, 0), 0, stripSentienceDetected.numPixels());  
   }
   else
   {
     stripSentienceDetected.fill(stripSentienceDetected.Color(0, 0, 0), 0, stripSentienceDetected.numPixels());
   }
-
   stripSentienceDetected.show();
 }
 
@@ -385,6 +381,8 @@ void loop()
 
   SetStrips();
 
+  /*
+
   SetPWMs();
 
   CheckButtons();
@@ -416,5 +414,5 @@ void loop()
     flipFlop = true; // TEMP
   }
 
-  /**/
+  */
 }

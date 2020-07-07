@@ -6,7 +6,7 @@
 
 enum class Pattern
 {
-    Blink,
+    OnOff,
     Sin,
     RampUp
 };
@@ -17,8 +17,9 @@ class flasher
 private:
     Pattern _pattern;
     int _delay;
-    int _maxPWM;
+    int _maxPwm;
     int _pwmValue = 0;
+    float _microsPerStep;
     unsigned long _oldMicros;
 
 public:
@@ -27,39 +28,51 @@ public:
     flasher(Pattern pattern, int delay, int maxPwm)
     {
         _pattern = pattern;
-        _delay = delay;
-        _maxPWM = maxPwm;
+        _maxPwm = maxPwm;
+        _delay = delay;        
     }
 
     inline int getPwmValue()
     {
-        float microsPerStep = 1.0 / (((float)_maxPWM / (float)_delay) / 1000.0);
-
-int stepsPassed;
         unsigned long curMicros = micros();
 
-        if ((curMicros - _oldMicros) > microsPerStep)
+        if ((curMicros - _oldMicros) > _microsPerStep)
         {
-            stepsPassed = (float)(curMicros -_oldMicros) / microsPerStep;
-         
-            _pwmValue += stepsPassed;
+            int stepsPassed = (float)(curMicros - _oldMicros) / _microsPerStep;
 
-            if (_pwmValue > _maxPWM)
+            if (_pattern == Pattern::RampUp)
             {
-                _pwmValue = 0;
+                _microsPerStep = 1.0 / (((float)_maxPwm/ (float)_delay) / 1000.0);
+                _pwmValue += stepsPassed;
+
+                if (_pwmValue > _maxPwm)
+                {
+                    _pwmValue = 0;
+                }               
+            } 
+            else if (_pattern == Pattern::Sin)
+            {
+                _microsPerStep = 1.0 / ((180.0 / (float)_delay) / 1000.0);
+                static byte sinIndex;
+                sinIndex += stepsPassed;
+                if (sinIndex > 180)
+                {
+                       sinIndex = 0; 
+                } 
+                 _pwmValue = _maxPwm * sin(radians(sinIndex));
+            }            
+            else if (_pattern == Pattern::OnOff)
+            {
+                  _microsPerStep = ((float)_delay / 2.0) * 1000.0; 
+                  static bool toggle = false;
+                  toggle = !toggle;
+                  _pwmValue = toggle ? _maxPwm : 0;
             }
 
-            _oldMicros = curMicros;
+             _oldMicros = curMicros;
         }
 
- //return stepsPassed; // TEMP
-
         return _pwmValue;
-    }
-
-    inline void setDelay(unsigned long delay)
-    {
-        _delay = delay;
     }
 };
 
