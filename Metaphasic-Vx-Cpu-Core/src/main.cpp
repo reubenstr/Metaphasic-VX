@@ -3,28 +3,21 @@
 #include "LedControl.h"        // https://platformio.org/lib/show/914/LedControl
 #include <JC_Button.h>         // https://github.com/JChristensen/JC_Button
 #include <Adafruit_NeoPixel.h> // https://github.com/adafruit/Adafruit_NeoPixel
-#include "msTimer.h"           // Local libary.
-#include "flasher.h"
-
-#include <jled.h>
+#include <common.h>            // Local libary.
+#include <msTimer.h>           // Local libary.
+#include <flasher.h>         // Local libary.
 
 #define PIN_MATRIX_DATAIN 4
 #define PIN_MATRIX_LOAD 3
 #define PIN_MATRIX_CLK 2
 
 #define PIN_STRIP_SENTIENCE_DETECTED 5
-#define PIN_BUTTON_ABORT A7
+#define PIN_BUTTON_ABORT 6
 #define PIN_BUTTON_SKYNET A3
 #define PIN_BUTTON_LCARS A2
 #define PIN_BUTTON_KITT A0
 #define PIN_BUTTON_HAL A1
 #define PIN_TOGGLE_SUPPRESSION A6
-
-const int maxPwmGenericLed = 4095;
-const int maxPwmRedLed = 1000;
-const int maxPwmGreenLed = 4095;
-const int maxPwmBlueLed = 1000;
-const int maxPwmYellowLed = 4095;
 
 // data, clk, load, number of matrix
 LedControl lc = LedControl(PIN_MATRIX_DATAIN, PIN_MATRIX_CLK, PIN_MATRIX_LOAD, 3);
@@ -44,6 +37,7 @@ bool cpuMatrix[8][8];
 byte hal0[8] = {B00000000, B00000000, B00000000, B00011000, B00011000, B00000000, B00000000, B00000000};
 byte hal1[8] = {B00000000, B00000000, B00111100, B00111100, B00111100, B00111100, B00000000, B00000000};
 byte hal2[8] = {B00000000, B01111110, B01111110, B01111110, B01111110, B01111110, B01111110, B00000000};
+byte lcarsVals[8] = {B10000000, B11000000, B11100000, B11110000, B11111000, B11111100, B11111110, B11111111};
 
 struct RainDrop
 {
@@ -70,25 +64,19 @@ enum aiStates
   hal
 } aiState;
 
-enum states
-{
-  stable = 0,
-  warning = 1,
-  critical = 2
-} state;
 
 const int numErrors = 4;
 bool errors[numErrors];
 
 bool flipFlop;
 bool sentienceDetected;
+bool abortFlag;
 
 void MemoryBank()
 {
   static msTimer timer(1000);
   if (timer.elapsed())
   {
-
     for (int row = 0; row < 8; row++)
     {
       for (int col = 0; col < 8; col++)
@@ -130,6 +118,18 @@ void Skynet()
       lc.setLed(1, drops[drop].row, drops[drop].col, true);
       lc.setLed(2, drops[drop].row, drops[drop].col, flipFlop ? false : true);
     }
+  }
+}
+
+void Lcars()
+{
+  static msTimer timer(500);
+  if (timer.elapsed())
+  {
+    int col = random(0, 8);
+    int val = random(0, 8);
+    lc.setColumn(1, col, lcarsVals[val]);
+    lc.setColumn(2, col, flipFlop ? ~lcarsVals[val] : lcarsVals[val]);
   }
 }
 
@@ -208,12 +208,11 @@ void Kitt()
   }
 }
 
-void SetPWMs()
+void UpdatePWMs()
 {
-
   uint16_t pwms1[16];
-  // map(countryData[i].confirmed, min, max, 128, maxPwmGenericLed);
 
+  // Error states/messages.
   for (int i = 0; i < 4; i++)
   {
     if (errors[i])
@@ -235,11 +234,11 @@ void SetPWMs()
   pwms1[4] = flipFlop ? maxPwmBlueLed : 0;
 
   // Transfer
-  static flasher flasherTransfer(Pattern::Sin, 500, maxPwmGreenLed);
+  static flasher flasherTransfer(Pattern::RandomFlash, 500, maxPwmGreenLed);
   pwms1[5] = flasherTransfer.getPwmValue();
 
   // ECC
-  static flasher flasherEcc(Pattern::Sin, 1000, maxPwmYellowLed);
+  static flasher flasherEcc(Pattern::RandomFlash, 2000, maxPwmYellowLed);
   pwms1[6] = flasherEcc.getPwmValue();
 
   pwmController1.setChannelsPWM(0, 16, pwms1);
@@ -251,7 +250,7 @@ void SetStrips()
   {
     static flasher flasherStrip(Pattern::OnOff, 1000, 255);
     int colorValue = flasherStrip.getPwmValue();
-    stripSentienceDetected.fill(stripSentienceDetected.Color(colorValue, 0, 0), 0, stripSentienceDetected.numPixels());  
+    stripSentienceDetected.fill(stripSentienceDetected.Color(colorValue, 0, 0), 0, stripSentienceDetected.numPixels());
   }
   else
   {
@@ -263,7 +262,6 @@ void SetStrips()
 void CheckButtons()
 {
   buttonAbort.read();
-
   buttonSkynet.read();
   buttonLcars.read();
   buttonKitt.read();
@@ -271,26 +269,33 @@ void CheckButtons()
 
   if (buttonAbort.wasPressed())
   {
+    if (sentienceDetected)
+    {
+      abortFlag = true;
+    }
   }
 
-  if (buttonSkynet.wasPressed())
+  if (!sentienceDetected)
   {
-    aiState = skynet;
-  }
+    if (buttonSkynet.wasPressed())
+    {
+      aiState = skynet;
+    }
 
-  if (buttonLcars.wasPressed())
-  {
-    aiState = lcars;
-  }
+    if (buttonLcars.wasPressed())
+    {
+      aiState = lcars;
+    }
 
-  if (buttonKitt.wasPressed())
-  {
-    aiState = kitt;
-  }
+    if (buttonKitt.wasPressed())
+    {
+      aiState = kitt;
+    }
 
-  if (buttonHal.wasPressed())
-  {
-    aiState = hal;
+    if (buttonHal.wasPressed())
+    {
+      aiState = hal;
+    }
   }
 }
 
@@ -336,11 +341,33 @@ void ProcessErrors()
   }
 }
 
+void AbortSequence()
+{
+  sentienceDetected = false;
+  SetStrips();
+
+  pwmController1.setAllChannelsPWM(0);
+
+  byte empty = 0;
+  for (int i = 0; i < 8; i++)
+  {
+    lc.setRow(0, 7 - i, empty);
+    lc.setRow(1, 7 - i, empty);
+    lc.setRow(2, 7 - i, empty);
+    delay(250);
+  }
+
+  for (int i = 0; i < 8; i++)
+  {
+    int pwmValue = ((i % 2) == 0) ? 0 : 1500;
+    pwmController1.setAllChannelsPWM(pwmValue);
+    delay(250);
+  }
+}
+
 void setup()
 {
-
   delay(500);
-
   Serial.begin(9600);
 
   buttonAbort.begin();
@@ -376,18 +403,31 @@ void setup()
 
 void loop()
 {
-  state = critical;         // TEMP
-  sentienceDetected = true; // TEMP
+  //state = critical;         // TEMP
+  //sentienceDetected = true; // TEMP
+  //aiState = lcars;          // TEMP
+
+  if (abortFlag)
+  {
+    abortFlag = false;
+    AbortSequence();
+  }
+
+  static msTimer flipFlopTimer(2500);
+  if (flipFlopTimer.elapsed())
+  {
+    flipFlop = !flipFlop;
+  }
 
   SetStrips();
 
-  /*
-
-  SetPWMs();
+  UpdatePWMs();
 
   CheckButtons();
 
   ProcessErrors();
+
+  MemoryBank();
 
   if (aiState == skynet)
   {
@@ -395,6 +435,7 @@ void loop()
   }
   else if (aiState == lcars)
   {
+    Lcars();
   }
   else if (aiState == kitt)
   {
@@ -404,15 +445,4 @@ void loop()
   {
     Hal();
   }
-
-  MemoryBank();
-
-  static msTimer flipFlopTimer(1000);
-  if (flipFlopTimer.elapsed())
-  {
-    flipFlop = !flipFlop;
-    flipFlop = true; // TEMP
-  }
-
-  */
 }

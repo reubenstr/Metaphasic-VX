@@ -33,11 +33,21 @@ class msTimer
       return 0;
     }
 
-    // Set delay and reset timer.
-    inline void setDelay(unsigned long delay) 
+// Set delay and reset timer.
+    inline void setDelayAndReset(unsigned long delay) 
     {   
       _delay = delay;
       _oldMillis = millis();
+    }
+
+    // Set delay and reset timer if delay is different.
+    inline void setDelay(unsigned long delay) 
+    {        
+      if (_delay != delay)
+      {       
+        _oldMillis = millis();
+        _delay = delay;  
+      } 
     }
 
     // Reset timer.

@@ -8,7 +8,9 @@ enum class Pattern
 {
     OnOff,
     Sin,
-    RampUp
+    RampUp, 
+    Flash,
+    RandomFlash
 };
 
 class flasher
@@ -68,6 +70,37 @@ public:
                   toggle = !toggle;
                   _pwmValue = toggle ? _maxPwm : 0;
             }
+               else if (_pattern == Pattern::Flash)
+            {
+                 static bool toggleFlash = false;   
+                if (toggleFlash)
+                {
+                    toggleFlash = false;
+                    _microsPerStep = ((float)_delay / 10.0) * 1000.0 * 9;
+                }
+                else
+                {
+                    toggleFlash = true;
+                    _microsPerStep = ((float)_delay / 10.0) * 1000.0;
+                }                
+                  _pwmValue = toggleFlash ? _maxPwm : 0;
+            }
+              else if (_pattern == Pattern::RandomFlash)
+            {
+                 static bool toggleFlash = false;   
+                if (toggleFlash)
+                {
+                    toggleFlash = false;
+                    _microsPerStep = ((float)random(_delay / 2, _delay * 1.5)) * 1000.0;
+                }
+                else
+                {
+                    toggleFlash = true;
+                    _microsPerStep = 100 * 1000.0;
+                }                
+                  _pwmValue = toggleFlash ? _maxPwm : 0;
+            }
+
 
              _oldMicros = curMicros;
         }
