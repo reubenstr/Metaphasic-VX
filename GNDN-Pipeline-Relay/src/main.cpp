@@ -6,32 +6,32 @@
 #include "msTimer.h"           // Local libary.
 #include "flasher.h"           // Local libary.
 
-#define PIN_STRIP_ISOLINEAR_MANAFOLD A1
-#define PIN_STRIP_DYNAMIC_MULTIPLEX 13
+#define PIN_STRIP_ISOLINEAR_MANAFOLD 13
+#define PIN_STRIP_DYNAMIC_MULTIPLEX A1
 #define PIN_STRIP_SYNAPTIC_GENERATOR A0
 #define PIN_STRIP_RADIATION 12
 
 #define PIN_RELAY_LEFT_1 A3
-#define PIN_RELAY_LEFT_2 A6
-//#define PIN_RELAY_RIGHT_1 A2
-#define PIN_RELAY_RIGHT_2 A7
+#define PIN_RELAY_LEFT_2 A2
+#define PIN_RELAY_RIGHT_1 10
+#define PIN_RELAY_RIGHT_2 8
 
 #define PIN_DECODER_S0 2
 #define PIN_DECODER_S1 3
 #define PIN_DECODER_S2 4
 #define PIN_DECODER_S3 5
-#define PIN_DECORDER_SIG A2
+#define PIN_DECORDER_SIG A6
 
 #define PIN_LED_DISPLAY_1_CLK 6
-#define PIN_LED_DISPLAY_2_CLK 8
-#define PIN_LED_DISPLAY_3_CLK 10
+#define PIN_LED_DISPLAY_2_CLK 6
+#define PIN_LED_DISPLAY_3_CLK 6
 #define PIN_LED_DISPLAY_1_DIO 7
 #define PIN_LED_DISPLAY_2_DIO 9
 #define PIN_LED_DISPLAY_3_DIO 11
 
-Adafruit_NeoPixel stripManafold = Adafruit_NeoPixel(3, PIN_STRIP_ISOLINEAR_MANAFOLD, NEO_RGB + NEO_KHZ800);
-Adafruit_NeoPixel stripMuliplex = Adafruit_NeoPixel(3, PIN_STRIP_DYNAMIC_MULTIPLEX, NEO_RGB + NEO_KHZ800);
-Adafruit_NeoPixel stripGenerator = Adafruit_NeoPixel(3, PIN_STRIP_SYNAPTIC_GENERATOR, NEO_RGB + NEO_KHZ800);
+Adafruit_NeoPixel stripManafold = Adafruit_NeoPixel(3, PIN_STRIP_ISOLINEAR_MANAFOLD, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripMuliplex = Adafruit_NeoPixel(3, PIN_STRIP_DYNAMIC_MULTIPLEX, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripGenerator = Adafruit_NeoPixel(3, PIN_STRIP_SYNAPTIC_GENERATOR, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripRadiation = Adafruit_NeoPixel(12, PIN_STRIP_RADIATION, NEO_GRB + NEO_KHZ800);
 
 PCA9685 pwmController1;
@@ -40,11 +40,106 @@ TM1637Display ledDisplay1(PIN_LED_DISPLAY_1_CLK, PIN_LED_DISPLAY_1_DIO);
 TM1637Display ledDisplay2(PIN_LED_DISPLAY_2_CLK, PIN_LED_DISPLAY_2_DIO);
 TM1637Display ledDisplay3(PIN_LED_DISPLAY_3_CLK, PIN_LED_DISPLAY_3_DIO);
 
+int temp;
+
+bool DeMultiplex(int channel)
+{
+  digitalWrite(PIN_DECODER_S0, channel & 0b00000001);
+  digitalWrite(PIN_DECODER_S1, channel & 0b00000010);
+  digitalWrite(PIN_DECODER_S2, channel & 0b00000100);
+  digitalWrite(PIN_DECODER_S3, channel & 0b00001000);
+
+  return analogRead(PIN_DECORDER_SIG) < 100 ? false : true;
+}
+
+void UpdateSynapticGenerator(bool trigger)
+{
+  static flasher flasherFlash(Pattern::Sin, 500, 255);
+  flasherFlash.repeat(false);
+
+  if (trigger)
+  {
+    flasherFlash.start();
+  }    
+
+  stripGenerator.fill(stripGenerator.Color(0, flasherFlash.getPwmValue(), 0), 0, stripGenerator.numPixels());
+  stripGenerator.show();
+}
+
 void UpdateLedDisplays()
 {
-  ledDisplay1.showNumberDecEx(1234, 1);
-  ledDisplay2.showNumberDecEx(4567, 2);
-  ledDisplay3.showNumberDecEx(8901, 3);
+
+  static msTimer timer1(1000);
+  static msTimer timer2(1000);
+  static msTimer timer3(1000);
+  static states previousState;
+  static int value1, value2, value3;
+  static int target1, target2, target3;
+
+  int minDelay = state == stable ? 100 : state == warning ? 40 : state == critical ? 5 : 0;
+  int maxDelay = state == stable ? 300 : state == warning ? 120 : state == critical ? 15 : 0;
+  int minRange = state == stable ? 0 : state == warning ? 100 : state == critical ? 1000 : 0;
+  int maxRange = state == stable ? 100 : state == warning ? 1000 : state == critical ? 10000 : 0;
+  int spread = state == stable ? 1 : state == warning ? 9 : state == critical ? 21 : 0;
+
+  if (previousState != state)
+  {
+    previousState = state;
+    timer1.resetDelay();
+    timer2.resetDelay();
+    timer3.resetDelay();
+  }
+
+  if (timer1.elapsed())
+  {
+    if (value1 > (target1 - spread) && value1 < (target1 + spread))
+    {
+      target1 = random(minRange, maxRange);
+      timer1.setDelay(random(minDelay, maxDelay));
+    }
+    else
+    {
+      if (value1 > target1)
+        value1 -= spread;
+      if (value1 < target1)
+        value1 += spread;
+    }
+    ledDisplay1.showNumberDecEx(value1);
+  }
+
+  if (timer2.elapsed())
+  {
+    if (value2 > (target2 - spread) && value2 < (target2 + spread))
+    {
+      target2 = random(minRange, maxRange);
+      timer2.setDelay(random(minDelay, maxDelay));
+    }
+    else
+    {
+      if (value2 > target2)
+        value2 -= spread;
+      if (value2 < target2)
+        value2 += spread;
+    }
+    ledDisplay2.showNumberDecEx(value2);
+  }
+
+  if (timer3.elapsed())
+  {
+    if (value3 > (target3 - spread) && value3 < (target3 + spread))
+    {
+      target3 = random(minRange, maxRange);
+      timer3.setDelay(random(minDelay, maxDelay));
+    }
+    else
+    {
+      if (value3 > target3)
+        value3 -= spread;
+      if (value3 < target3)
+        value3 += spread;
+    }
+    ledDisplay3.showNumberDecEx(value3);
+  }
 }
 
 void UpdateRadiation()
@@ -78,43 +173,131 @@ void UpdateRadiation()
   stripRadiation.show();
 }
 
-void SetPWMs()
+void UpdatePWMs()
 {
-
   uint16_t pwms1[16];
 
-  for (int i = 0; i < 16; i++)
+  // System in Terminal Flux
+  int systemsInFlux = state == stable ? 1 : state == warning ? 2 : state == critical ? 3 : 0;
+  int fluxDelay = state == stable ? 5000 : state == warning ? 3000 : state == critical ? 1000 : 0;
+
+  static bool inFlux[4];
+  static msTimer timerFlux(1000);
+  if (timerFlux.elapsed())
   {
-    pwms1[i] = 4095;
+    timerFlux.setDelay(fluxDelay);
+    RandomArrayFill(inFlux, systemsInFlux, sizeof(inFlux));
   }
+
+  pwms1[0] = inFlux[0] ? maxPwmGenericLed : 0;
+  pwms1[1] = inFlux[1] ? maxPwmGenericLed : 0;
+  pwms1[2] = inFlux[2] ? maxPwmGenericLed : 0;
+  pwms1[3] = inFlux[3] ? maxPwmGenericLed : 0;
+
+  // Photonic Lock 7
+  int totalSubspaceValue = DeMultiplex(11) + DeMultiplex(12) + DeMultiplex(13) + DeMultiplex(14) + DeMultiplex(15);
+  pwms1[7] = totalSubspaceValue % 2 == 0 ? maxPwmGreenLed : 0;
+
+  // Bal 6
+  static flasher flasherBal(Pattern::RandomReverseFlash, 2000, maxPwmGreenLed);
+  if (state == stable)
+    flasherBal.setDelay(2000);
+  if (state == warning)
+    flasherBal.setDelay(750);
+  if (state == critical)
+    flasherBal.setDelay(250);
+  pwms1[6] = flasherBal.getPwmValue();
+
+  // Delta Feedback 5
+  static flasher flasherFeedback(Pattern::RandomFlash, 1000, maxPwmYellowLed);
+  pwms1[5] = flasherFeedback.getPwmValue();
+
+  // Router graphical indicators: Omega, imaginary, lambda : 10, 9, 8
+  pwms1[10] = !DeMultiplex(8) ? maxPwmGenericLed : 0;
+  pwms1[9] = !DeMultiplex(10) ? maxPwmGenericLed : 0;
+  pwms1[8] = !DeMultiplex(9) ? maxPwmGenericLed : 0;
+
+  // Router LED indicators: 15, 14, 13
+  static flasher flasherRouter(Pattern::OnOff, 1000, maxPwmGenericLed);
+  int routerDelay = state == stable ? 2000 : state == warning ? 1000 : state == critical ? 500 : 0;
+  flasherRouter.setDelay(routerDelay);
+
+  // Switches Vox, Stir, and RVS
+  int switchVal = DeMultiplex(7) + DeMultiplex(4) + DeMultiplex(5);
+  if (switchVal == 0)
+    flasherRouter.setPattern(Pattern::OnOff);
+  if (switchVal == 1)
+    flasherRouter.setPattern(Pattern::Sin);
+  if (switchVal == 2)
+    flasherRouter.setPattern(Pattern::Flash);
+  if (switchVal == 3)
+    flasherRouter.setPattern(Pattern::RampUp);
+
+  pwms1[15] = !DeMultiplex(8) ? flasherRouter.getPwmValue() : 0;
+  pwms1[14] = !DeMultiplex(10) ? flasherRouter.getPwmValue() : 0;
+  pwms1[13] = !DeMultiplex(9) ? flasherRouter.getPwmValue() : 0;
+
+  // Post-Manafold 11
+  pwms1[11] = maxPwmGenericLed - flasherRouter.getPwmValue();
+
+  // Em. Pass: 12
+  pwms1[12] = !DeMultiplex(6) ? maxPwmRedLed : 0;
 
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
 
-bool DeMultiplex(int channel)
+void ToggleRelay(int relay)
 {
-  digitalWrite(PIN_DECODER_S0, channel & 0b00000001);
-  digitalWrite(PIN_DECODER_S1, channel & 0b00000010);
-  digitalWrite(PIN_DECODER_S2, channel & 0b00000100);
-  digitalWrite(PIN_DECODER_S3, channel & 0b00001000);
-
-  return digitalRead(PIN_DECORDER_SIG);
+  if (relay == 0)
+    digitalWrite(PIN_RELAY_LEFT_1, !digitalRead(PIN_RELAY_LEFT_1));
+  else if (relay == 1)
+    digitalWrite(PIN_RELAY_LEFT_2, !digitalRead(PIN_RELAY_LEFT_2));
+  else if (relay == 2)
+    digitalWrite(PIN_RELAY_RIGHT_1, !digitalRead(PIN_RELAY_RIGHT_1));
+  else if (relay == 3)
+    digitalWrite(PIN_RELAY_RIGHT_2, !digitalRead(PIN_RELAY_RIGHT_2));
 }
 
-void ProcessSwitches()
+void ProcessSubspaceSwitches()
 {
-
   // Subspace Synthesis, channels 11, 12, 13, 14, 15
+  static int oldSubspaceValue;
+  int subspaceValue = DeMultiplex(11) + DeMultiplex(12) + DeMultiplex(13) + DeMultiplex(14) + DeMultiplex(15);
+  if (oldSubspaceValue != subspaceValue)
+  {
+    oldSubspaceValue = subspaceValue;
+    ToggleRelay(random(0, 4));
+    UpdateSynapticGenerator(true);
+  }
+}
 
-  // Em. Pass, channel 6
+void UpdateStripIndicators()
+{
+  static flasher flasherManafold(Pattern::RandomReverseFlash, 500, 255);
+  static flasher flasherMuliplex(Pattern::RandomReverseFlash, 500, 255);
+  //static flasher flasherGenerator(Pattern::RandomReverseFlash, 500, 255);
 
-  // Vox, channel 7
+  int delay = state == stable ? 1600 : state == warning ? 800 : state == critical ? 400 : 0;
+  flasherManafold.setDelay(delay);
+  flasherMuliplex.setDelay(delay);
+  //flasherGenerator.setDelay(delay);
 
-  // Stir O2, channel 4
+  if (state == stable)
+  {
+    stripManafold.fill(stripManafold.Color(0, 255, 0), 0, stripManafold.numPixels());
+    stripMuliplex.fill(stripMuliplex.Color(0, 255, 0), 0, stripMuliplex.numPixels());
+    //stripGenerator.fill(stripGenerator.Color(0, 255, 0), 0, stripGenerator.numPixels());
+  }
+  else
+  {
+    stripManafold.fill(stripManafold.Color(flasherManafold.getPwmValue(), 0, 0), 0, stripManafold.numPixels());
+    stripMuliplex.fill(stripMuliplex.Color(flasherMuliplex.getPwmValue(), 0, 0), 0, stripMuliplex.numPixels());
+    //stripGenerator.fill(stripGenerator.Color(flasherGenerator.getPwmValue(), flasherGenerator.getPwmValue(), 0), 0, stripGenerator.numPixels());
+  }
 
-  // 88-n RVS, channel 5
-
-  // Omicron Relay (omega, imaginary, lambda), channels 8, 10, 9
+  stripManafold.show();
+  stripMuliplex.show();
+  //stripGenerator.show();
 }
 
 void setup()
@@ -129,6 +312,16 @@ void setup()
   pinMode(PIN_DECODER_S2, OUTPUT);
   pinMode(PIN_DECODER_S3, OUTPUT);
   pinMode(PIN_DECORDER_SIG, INPUT);
+
+  pinMode(PIN_RELAY_LEFT_1, OUTPUT);
+  pinMode(PIN_RELAY_LEFT_2, OUTPUT);
+  pinMode(PIN_RELAY_RIGHT_1, OUTPUT);
+  pinMode(PIN_RELAY_RIGHT_2, OUTPUT);
+
+  digitalWrite(PIN_RELAY_LEFT_1, LOW);  // TEMP
+  digitalWrite(PIN_RELAY_LEFT_2, LOW);  // TEMP
+  digitalWrite(PIN_RELAY_RIGHT_1, LOW); // TEMP
+  digitalWrite(PIN_RELAY_RIGHT_2, LOW); // TEMP
 
   Wire.begin();
   pwmController1.resetDevices();
@@ -148,19 +341,31 @@ void setup()
 void loop()
 {
 
-  SetPWMs();
+  // TEMP
+  mode = passive;
+  state = stable;
 
-  ProcessSwitches();
+  UpdatePWMs();
+
+  ProcessSubspaceSwitches();
 
   UpdateRadiation();
 
   UpdateLedDisplays();
 
-  stripManafold.fill(stripManafold.Color(255, 0, 0), 0, stripManafold.numPixels());
-  stripMuliplex.fill(stripMuliplex.Color(0, 255, 0), 0, stripMuliplex.numPixels());
-  stripGenerator.fill(stripGenerator.Color(0, 0, 255), 0, stripGenerator.numPixels());
+  UpdateStripIndicators();
 
-  stripManafold.show();
-  stripMuliplex.show();
-  stripGenerator.show();
+  UpdateSynapticGenerator(false);
+
+  static msTimer timerRelays(2000);
+  int delayRelays = state == stable ? 1500 : state == warning ? 700 : state == critical ? 350 : 0;
+  timerRelays.setDelay(delayRelays);
+  if (timerRelays.elapsed())
+  {
+    if (mode == active)
+    {
+      ToggleRelay(random(0, 3));
+      UpdateSynapticGenerator(true);
+    }
+  }
 }

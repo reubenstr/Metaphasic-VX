@@ -9,11 +9,13 @@
 
 enum class Pattern
 {
+    Solid,
     OnOff,
     Sin,
     RampUp,
     Flash,
-    RandomFlash
+    RandomFlash,
+    RandomReverseFlash
 };
 
 class flasher
@@ -24,11 +26,13 @@ private:
     int _delay;
     int _maxPwm;
     int _pwmValue = 0;
+    bool _repeat = true;
     float _microsPerStep;
     unsigned long _oldMicros;
 
     byte sinIndex;
-    bool toggle = false;    
+    bool toggle = false;
+    bool _endOfCycle;
 
 public:
     // Default Constructor
@@ -50,7 +54,7 @@ public:
 
     inline void setDelay(int delay)
     {
-         _delay = delay;
+        _delay = delay;
     }
 
     inline void setPattern(Pattern pattern)
@@ -58,13 +62,48 @@ public:
         _pattern = pattern;
     }
 
+    inline void reset()
+    {
+        _oldMicros = 0;
+        sinIndex = 0;
+        _pwmValue = 0;
+    }
+
+    inline void repeat(bool repeat)
+    {
+        _repeat = repeat;
+    }
+
+    inline void start()
+    {
+        _endOfCycle = false;
+        reset();
+    }
+
+     inline void stop()
+    {
+        _endOfCycle = true;
+        _repeat = false;
+    }
+
     inline int getPwmValue()
     {
+
+        if (_endOfCycle && !_repeat)
+        {
+            return 0;
+        }
+
         unsigned long curMicros = micros();
 
         if ((curMicros - _oldMicros) > _microsPerStep)
         {
             int stepsPassed = (float)(curMicros - _oldMicros) / _microsPerStep;
+
+            if (_pattern == Pattern::Solid)
+            {
+                _pwmValue = _maxPwm;
+            }
 
             if (_pattern == Pattern::RampUp)
             {
@@ -78,22 +117,23 @@ public:
             }
             else if (_pattern == Pattern::Sin)
             {
-                _microsPerStep = 1.0 / ((180.0 / (float)_delay) / 1000.0);              
+                _microsPerStep = 1.0 / ((180.0 / (float)_delay) / 1000.0);
                 sinIndex += stepsPassed;
                 if (sinIndex > 180)
                 {
                     sinIndex = 0;
+                    _endOfCycle = true;
                 }
                 _pwmValue = _maxPwm * sin(radians(sinIndex));
             }
             else if (_pattern == Pattern::OnOff)
             {
-                _microsPerStep = ((float)_delay / 2.0) * 1000.0;               
+                _microsPerStep = ((float)_delay / 2.0) * 1000.0;
                 toggle = !toggle;
                 _pwmValue = toggle ? _maxPwm : 0;
             }
             else if (_pattern == Pattern::Flash)
-            {               
+            {
                 if (toggle)
                 {
                     toggle = false;
@@ -107,7 +147,7 @@ public:
                 _pwmValue = toggle ? _maxPwm : 0;
             }
             else if (_pattern == Pattern::RandomFlash)
-            {                
+            {
                 if (toggle)
                 {
                     toggle = false;
@@ -119,6 +159,20 @@ public:
                     _microsPerStep = 100 * 1000.0;
                 }
                 _pwmValue = toggle ? _maxPwm : 0;
+            }
+            else if (_pattern == Pattern::RandomReverseFlash)
+            {
+                if (toggle)
+                {
+                    toggle = false;
+                    _microsPerStep = ((float)random(_delay / 2, _delay * 1.5)) * 1000.0;
+                }
+                else
+                {
+                    toggle = true;
+                    _microsPerStep = 100 * 1000.0;
+                }
+                _pwmValue = toggle ? 0 : _maxPwm;
             }
 
             _oldMicros = curMicros;
