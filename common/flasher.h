@@ -1,14 +1,17 @@
+
+// Crude LED flashing pattern generator.
+// Not intended for precise timer.
+
 #ifndef FLASHER_H
 #define FLASHER_H
 
 #include <Arduino.h>
-#include "msTimer.h"
 
 enum class Pattern
 {
     OnOff,
     Sin,
-    RampUp, 
+    RampUp,
     Flash,
     RandomFlash
 };
@@ -24,14 +27,35 @@ private:
     float _microsPerStep;
     unsigned long _oldMicros;
 
+    byte sinIndex;
+    bool toggle = false;    
+
 public:
+    // Default Constructor
+    flasher()
+    {
+        _pattern = Pattern::Sin;
+        _maxPwm = 255;
+        _delay = 1000;
+    }
+
     // Constructor.
     // Delay in milliseconds
     flasher(Pattern pattern, int delay, int maxPwm)
     {
         _pattern = pattern;
         _maxPwm = maxPwm;
-        _delay = delay;        
+        _delay = delay;
+    }
+
+    inline void setDelay(int delay)
+    {
+         _delay = delay;
+    }
+
+    inline void setPattern(Pattern pattern)
+    {
+        _pattern = pattern;
     }
 
     inline int getPwmValue()
@@ -44,65 +68,60 @@ public:
 
             if (_pattern == Pattern::RampUp)
             {
-                _microsPerStep = 1.0 / (((float)_maxPwm/ (float)_delay) / 1000.0);
+                _microsPerStep = 1.0 / (((float)_maxPwm / (float)_delay) / 1000.0);
                 _pwmValue += stepsPassed;
 
                 if (_pwmValue > _maxPwm)
                 {
                     _pwmValue = 0;
-                }               
-            } 
+                }
+            }
             else if (_pattern == Pattern::Sin)
             {
-                _microsPerStep = 1.0 / ((180.0 / (float)_delay) / 1000.0);
-                static byte sinIndex;
+                _microsPerStep = 1.0 / ((180.0 / (float)_delay) / 1000.0);              
                 sinIndex += stepsPassed;
                 if (sinIndex > 180)
                 {
-                       sinIndex = 0; 
-                } 
-                 _pwmValue = _maxPwm * sin(radians(sinIndex));
-            }            
+                    sinIndex = 0;
+                }
+                _pwmValue = _maxPwm * sin(radians(sinIndex));
+            }
             else if (_pattern == Pattern::OnOff)
             {
-                  _microsPerStep = ((float)_delay / 2.0) * 1000.0; 
-                  static bool toggle = false;
-                  toggle = !toggle;
-                  _pwmValue = toggle ? _maxPwm : 0;
+                _microsPerStep = ((float)_delay / 2.0) * 1000.0;               
+                toggle = !toggle;
+                _pwmValue = toggle ? _maxPwm : 0;
             }
-               else if (_pattern == Pattern::Flash)
-            {
-                 static bool toggleFlash = false;   
-                if (toggleFlash)
+            else if (_pattern == Pattern::Flash)
+            {               
+                if (toggle)
                 {
-                    toggleFlash = false;
+                    toggle = false;
                     _microsPerStep = ((float)_delay / 10.0) * 1000.0 * 9;
                 }
                 else
                 {
-                    toggleFlash = true;
+                    toggle = true;
                     _microsPerStep = ((float)_delay / 10.0) * 1000.0;
-                }                
-                  _pwmValue = toggleFlash ? _maxPwm : 0;
+                }
+                _pwmValue = toggle ? _maxPwm : 0;
             }
-              else if (_pattern == Pattern::RandomFlash)
-            {
-                 static bool toggleFlash = false;   
-                if (toggleFlash)
+            else if (_pattern == Pattern::RandomFlash)
+            {                
+                if (toggle)
                 {
-                    toggleFlash = false;
+                    toggle = false;
                     _microsPerStep = ((float)random(_delay / 2, _delay * 1.5)) * 1000.0;
                 }
                 else
                 {
-                    toggleFlash = true;
+                    toggle = true;
                     _microsPerStep = 100 * 1000.0;
-                }                
-                  _pwmValue = toggleFlash ? _maxPwm : 0;
+                }
+                _pwmValue = toggle ? _maxPwm : 0;
             }
 
-
-             _oldMicros = curMicros;
+            _oldMicros = curMicros;
         }
 
         return _pwmValue;

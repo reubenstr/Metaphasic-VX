@@ -10,12 +10,12 @@
 #define PIN_ANALOG_POT_ATOMIC_TRI_BOND A6
 #define PIN_ANALOG_POT_MIDI_CLORIAN_COMPENSATION A3
 #define PIN_LED_POINTER_RED 6
-#define PIN_LED_POINTER_GREEN 9
-#define PIN_LED_POINTER_BLUE 10
+#define PIN_LED_POINTER_GREEN 3
+#define PIN_LED_POINTER_BLUE 5
 #define PIN_TOGGLE_1 A0
 #define PIN_TOGGLE_2 A1
 #define PIN_WS2812B_CENTER_INDICATOR_LEFT 12
-#define PIN_WS2812B_CENTER_INDICATOR_RIGHT 5
+#define PIN_WS2812B_CENTER_INDICATOR_RIGHT -1
 #define PIN_SERVO_RED 4
 #define PIN_SERVO_GREEN 3
 #define PIN_SERVO_BLUE 2
@@ -88,7 +88,7 @@ int RandomServoPosition()
   return pos;
 }
 
-int SetTriServoValues()
+void SetTriServoValues()
 {
   static msTimer redTimer(100);
   static msTimer greenTimer(100);
@@ -96,7 +96,7 @@ int SetTriServoValues()
 
   static msTimer redDetachTimer(50);
   static msTimer greenDetachTimer(50);
-  static msTimer blueDetachTimer(50); 
+  static msTimer blueDetachTimer(50);
 
   int redPos, greenPos, bluePos;
   int delayMs = state == stable ? 4000 : state == warning ? 2000 : state == critical ? 1000 : 0;
@@ -196,15 +196,26 @@ void SetTriValues()
 void UpdateLeftTriangle(bool updateServosFlag)
 {
 
+  if (updateServosFlag)
+  {
+    SetTriServoValues();
+  }
+  else
+  {
+    servoRed.detach();
+    servoGreen.detach();
+    servoBlue.detach();
+  }
+
+  static flasher flasherRed(Pattern::Sin, 1000, 255);
+  static flasher flasherGreen(Pattern::Sin, 1000, 255);
+  static flasher flasherBlue(Pattern::Sin, 1000, 255);
+
+  analogWrite(PIN_LED_POINTER_RED, flasherRed.getPwmValue());
+  analogWrite(PIN_LED_POINTER_GREEN, flasherGreen.getPwmValue());
+  analogWrite(PIN_LED_POINTER_BLUE, flasherBlue.getPwmValue());
 
 
-  if (updateServosFlag) SetTriServoValues();
-
-
-analogWrite(PIN_LED_POINTER_RED, 255);
-  analogWrite(PIN_LED_POINTER_GREEN, 255);
-  analogWrite(PIN_LED_POINTER_BLUE, 255);
-  
 }
 
 void UpdateRightTriangle(bool fill)
@@ -241,9 +252,9 @@ void setup()
   delay(500);
   Serial.begin(9600);
 
-  pinMode(PIN_LED_POINTER_RED, OUTPUT);
-  pinMode(PIN_LED_POINTER_GREEN, OUTPUT);
-  pinMode(PIN_LED_POINTER_BLUE, OUTPUT);
+  //pinMode(PIN_LED_POINTER_RED, OUTPUT);
+  //pinMode(PIN_LED_POINTER_GREEN, OUTPUT);
+  //pinMode(PIN_LED_POINTER_BLUE, OUTPUT);
 
   pinMode(PIN_TOGGLE_1, INPUT);
   digitalWrite(PIN_TOGGLE_1, HIGH);
@@ -271,9 +282,9 @@ void setup()
 void loop()
 {
 
-state = critical;
+  state = critical;
 
-  static bool updateServosFlag = true;
+  static bool updateServosFlag = false;
   static bool oldtoggle1State = digitalRead(PIN_TOGGLE_1);
 
   if (oldtoggle1State != digitalRead(PIN_TOGGLE_1))
