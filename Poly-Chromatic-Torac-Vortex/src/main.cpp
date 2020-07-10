@@ -19,8 +19,8 @@
 #define PIN_BUTTON_PLUMBUS A3
 #define PIN_TOGGLE_BRAKE 13
 #define PIN_BUTTOM_CYCLE 12
-#define PIN_POT_NANOGAIN A7
-#define PIN_POT_CORRECTION A6
+#define PIN_POT_NANOGAIN A6
+#define PIN_POT_CORRECTION A7
 
 #define LCD_COLUMNS 20
 #define LCD_ROWS 4
@@ -50,11 +50,15 @@ struct ControlStates
   bool plumbus;
 } controlStates;
 
+struct TuningValues
+{
+  int nanogain;
+  int correction;
+} tuningValues;
+
 void UpdatePWMs()
 {
   uint16_t pwms1[16];
-
-
 
   pwms1[5] = controlStates.injection ? maxPwmGenericLed : 0;
   pwms1[6] = controlStates.agitation ? maxPwmGenericLed : 0;
@@ -71,7 +75,8 @@ void UpdatePWMs()
 void UpdateLcdDisplay()
 {
   static msTimer timerLcd(1000);
-  static int message, oldMessage;
+  static int message = 0;
+  static int oldMessage = 99;
   const int numMessages = 4;
 
   buttonCycle.read();
@@ -89,25 +94,54 @@ void UpdateLcdDisplay()
     }
   }
 
-  if (oldMessage != message)
+  static msTimer timerLcdRefresh(50);
+  if (timerLcdRefresh.elapsed())
   {
     oldMessage = message;
+    //lcd.clear();
     lcd.setCursor(0, 0);
 
     if (message == 0)
-      lcd.print(F("PCF8574 is OK.  "));
-    if (message == 1)
     {
-      int gain = random(60, 100);
-      lcd.print(F("Hypergain:    "));
-      lcd.print(gain, DEC);
+      lcd.print(F("PCF8574 is OK.  "));
+      lcd.setCursor(0, 1);
+      lcd.print(F("PCA9685 is OK.  "));
+    }
+      
+    if (message == 1)
+    {     
+      lcd.print(F("Nanogain:"));
+      lcd.print(tuningValues.nanogain, DEC);
+      lcd.print(F("nX/s"));
+      lcd.setCursor(0, 1);
+      lcd.print(F("C. Corr.:"));
+      lcd.print(tuningValues.correction, DEC);
       lcd.print(F("%"));
     }
 
     if (message == 2)
-      lcd.print(F("Morty calm.     "));
+    {
+      lcd.print(F("Morty status:   "));
+      lcd.setCursor(0, 1);
+      if (state == stable)
+        lcd.print(F("Mellow          "));
+      if (state == warning)
+        lcd.print(F("Annoying        "));
+      if (state == critical)
+        lcd.print(F("Freaking out!   "));
+    }
+
     if (message == 3)
-      lcd.print(F("Toraq laser active."));
+    {
+      static abvPercent = 15;
+      lcd.print(F("*** Warning *** "));
+      lcd.setCursor(0, 1);
+      lcd.print(F("ABV below 0."));
+      lcd.print(percent, DEC);
+      static msTimer timerAbv(750);
+      if (timerAbv.elapsed()) abvPercent = random(10, 35);
+      lcd.print(F("%!"));
+    }
   }
 }
 
@@ -127,6 +161,12 @@ void CheckButtons()
     controlStates.supression = !controlStates.supression;
   if (buttonPlumbus.wasPressed())
     controlStates.plumbus = !controlStates.plumbus;
+}
+
+void CheckPotentiometers()
+{
+  tuningValues.nanogain = map(analogRead(PIN_POT_NANOGAIN), 0, 1023, 0, 15);
+  tuningValues.correction = map(analogRead(PIN_POT_CORRECTION), 0, 1023, 0, 30);
 }
 
 void setup()
@@ -172,7 +212,9 @@ void setup()
 void loop()
 {
 
-CheckButtons();
+  CheckButtons();
+
+  CheckPotentiometers();
 
   UpdatePWMs();
 
