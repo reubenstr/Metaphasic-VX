@@ -5,23 +5,26 @@
 #include "common.h"            // Local libary.
 #include "msTimer.h"           // Local libary.
 #include "flasher.h"           // Local libary.
+#include <LiquidCrystal_I2C.h>
+
 
 #define PIN_STRIP_GENERATOR 11
 #define PIN_STRIP_ROUND_1 10
 #define PIN_STRIP_ROUND_2 9
 #define PIN_STRIP_ROUND_3 8
 #define PIN_STRIP_CIRCLE 7
-
 #define PIN_BUTTON_INJECTION A0
 #define PIN_BUTTON_AGITATION A1
 #define PIN_BUTTON_SUPRESSION A2
 #define PIN_BUTTON_PLUMBUS A3
-
 #define PIN_TOGGLE_BRAKE 13
 #define PIN_BUTTOM_CYCLE 12
-
 #define PIN_POT_NANOGAIN A7
 #define PIN_POT_CORRECTION A6
+
+#define LCD_COLUMNS 20
+#define LCD_ROWS   4
+#define PAGE   ((COLUMS) * (ROWS))
 
 Adafruit_NeoPixel stripGenerator = Adafruit_NeoPixel(3, PIN_STRIP_GENERATOR, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripVortex1 = Adafruit_NeoPixel(16, PIN_STRIP_ROUND_1, NEO_GRB + NEO_KHZ800);
@@ -30,6 +33,9 @@ Adafruit_NeoPixel stripVortex3 = Adafruit_NeoPixel(16, PIN_STRIP_ROUND_3, NEO_GR
 Adafruit_NeoPixel stripCircle = Adafruit_NeoPixel(44, PIN_STRIP_CIRCLE, NEO_GRB + NEO_KHZ800);
 
 PCA9685 pwmController1;
+
+LiquidCrystal_I2C lcd(PCF8574_ADDR_A21_A11_A01, 4, 5, 6, 16, 11, 12, 13, 14, POSITIVE);
+
 
 void UpdatePWMs()
 {
@@ -51,7 +57,7 @@ PIN_BUTTON_PLUMBUS
 
   pwms1[5] = !digitalRead(PIN_BUTTON_INJECTION) ? 4000 : 0;
   pwms1[6] = !digitalRead(PIN_BUTTON_AGITATION) ? 4000 : 0;
-  pwms1[4] = !digitalRead(PIN_BUTTON_SUPRESSION) ? 500 : 0;
+  pwms1[4] = !digitalRead(PIN_BUTTON_SUPRESSION) ? 4000 : 0;
   pwms1[7] = !digitalRead(PIN_BUTTON_PLUMBUS) ? 4000 : 0;
 
   pwms1[9] = 4095;
@@ -89,12 +95,17 @@ void setup()
   pwmController1.resetDevices();
   pwmController1.init(0x40);
   pwmController1.setPWMFrequency(1500);
+
+  lcd.begin(LCD_COLUMNS, LCD_ROWS);
 }
 
 void loop()
 {
 
   UpdatePWMs();
+
+
+  lcd.print(F("PCF8574 is OK...")); 
 
   static flasher flasherGenerator(Pattern::Sin, 1000, 255);
   stripGenerator.fill(stripGenerator.Color(0, flasherGenerator.getPwmValue(), 0), 0, stripGenerator.numPixels());
