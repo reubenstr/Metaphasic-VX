@@ -9,9 +9,9 @@
 #include "flasher.h"           // Local libary.
 
 #define PIN_STRIP_GENERATOR 11
-#define PIN_STRIP_ROUND_1 10
+#define PIN_STRIP_ROUND_1 8
 #define PIN_STRIP_ROUND_2 9
-#define PIN_STRIP_ROUND_3 8
+#define PIN_STRIP_ROUND_3 10
 #define PIN_STRIP_CIRCLE 7
 #define PIN_BUTTON_INJECTION A0
 #define PIN_BUTTON_AGITATION A1
@@ -59,6 +59,8 @@ struct TuningValues
   bool updateFlag;
 } tuningValues;
 
+const int vertexBaseSpeed = 160;
+
 void UpdatePWMs()
 {
   uint16_t pwms1[16];
@@ -68,9 +70,13 @@ void UpdatePWMs()
   pwms1[4] = controlStates.supression ? maxPwmGenericLed : 0;
   pwms1[7] = controlStates.plumbus ? maxPwmGenericLed : 0;
 
-  pwms1[9] = 4095;
-  pwms1[10] = map(analogRead(PIN_POT_NANOGAIN), 0, 1023, 0, 4095);
-  pwms1[11] = map(analogRead(PIN_POT_CORRECTION), 0, 1023, 0, 4095);
+  static flasher flasherIndicator(Pattern::Sin, 750, maxPwmRedLed);
+  pwms1[9] = state == warning ? flasherIndicator.getPwmValue() : 0;
+
+  pwms1[10] = tuningValues.nanogain > 13 || tuningValues.correction > 25 ? maxPwmRedLed : 0;
+
+  static flasher flasherStraightened(Pattern::Solid, 500, maxPwmRedLed);
+  pwms1[11] = state == warning || state == critical ? flasherStraightened.getPwmValue() : 0;
 
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
@@ -78,26 +84,30 @@ void UpdatePWMs()
 void UpdateLcdDisplay()
 {
   static msTimer timerNewMessage(1000);
+  static msTimer timerLcdRefresh(100);
   static int message = 0;
   const int numMessages = 4;
 
   buttonCycle.read();
+
   if (buttonCycle.wasPressed())
   {
     if (++message > numMessages)
+    {
       message = 0;
+    }
+    activityFlag = true;
   }
 
   if (timerNewMessage.elapsed())
   {
-    timerNewMessage.setDelay(1000);
-    if (mode = active)
+    timerNewMessage.setDelay(2000);
+    if (mode == passive)
     {
-      int message = random(0, numMessages);
+      message = random(0, numMessages);
     }
   }
 
-  static msTimer timerLcdRefresh(50);
   if (timerLcdRefresh.elapsed() || tuningValues.updateFlag)
   {
 
@@ -119,14 +129,12 @@ void UpdateLcdDisplay()
 
     if (message == 1)
     {
-      char bufGain[10];
-      sprintf(bufGain, "Nanogain: %02unX/s", tuningValues.nanogain);
-      lcd.print(bufGain);
-
+      char buf[20];
+      sprintf(buf, "Nanogain: %02unX/s", tuningValues.nanogain);
+      lcd.print(buf);
       lcd.setCursor(0, 1);
-      char bufCorrection[10];
-      sprintf(bufCorrection, "C. Corr.: %02upY/m", tuningValues.correction);
-      lcd.print(bufCorrection);
+      sprintf(buf, "C. Corr.: %02upY/m", tuningValues.correction);
+      lcd.print(buf);
     }
 
     if (message == 2)
@@ -171,6 +179,7 @@ void CheckButtons()
     {
       controlStates.agitation = false;
     }
+    activityFlag = true;
   }
 
   if (buttonAgitation.wasPressed())
@@ -181,16 +190,19 @@ void CheckButtons()
     {
       controlStates.injection = true;
     }
+    activityFlag = true;
   }
 
   if (buttonSuppression.wasPressed())
   {
     controlStates.supression = !controlStates.supression;
+    activityFlag = true;
   }
 
   if (buttonPlumbus.wasPressed())
   {
     controlStates.plumbus = !controlStates.plumbus;
+    activityFlag = true;
   }
 }
 
@@ -204,7 +216,15 @@ void CheckPotentiometers()
   {
     tuningValues.updateFlag = true;
     tuningValues.oldNanogain = tuningValues.nanogain;
+    activityFlag = true;
+  }
+
+  if (tuningValues.correction > tuningValues.oldCorrection + 1 ||
+      tuningValues.correction < tuningValues.oldCorrection - 1)
+  {
+    tuningValues.updateFlag = true;
     tuningValues.oldCorrection = tuningValues.correction;
+    activityFlag = true;
   }
 }
 
@@ -217,7 +237,7 @@ void UpdateVortexStrip1()
 
   if (timerVortex.elapsed())
   {
-    timerVortex.setDelay(20 + tuningValues.nanogain * 10);
+    timerVortex.setDelay(vertexBaseSpeed - (tuningValues.nanogain * 10));
 
     if (controlStates.agitation)
     {
@@ -249,7 +269,7 @@ void UpdateVortexStrip1()
         else
         {
           // Solid color.
-          stripVortex1.setPixelColor(i, Color(0, 255, 0));
+          stripVortex1.setPixelColor(i, Color(255, 0, 0));
         }
       }
       else
@@ -277,7 +297,7 @@ void UpdateVortexStrip2()
 
   if (timerVortex.elapsed())
   {
-    timerVortex.setDelay(20 + tuningValues.nanogain * 10);
+    timerVortex.setDelay(vertexBaseSpeed - (tuningValues.nanogain * 10));
 
     if (controlStates.agitation)
     {
@@ -295,7 +315,7 @@ void UpdateVortexStrip2()
 
     for (int i = 0; i < stripVortex2.numPixels(); i++)
     {
-       int pixelIndexAfterOffset = !controlStates.plumbus ? RollOverValue(pixelIndex, pixelOffset, 0, stripVortex1.numPixels()) : pixelIndex;
+      int pixelIndexAfterOffset = !controlStates.plumbus ? RollOverValue(pixelIndex, pixelOffset, 0, stripVortex1.numPixels()) : pixelIndex;
 
       if (i == pixelIndexAfterOffset)
       {
@@ -336,7 +356,7 @@ void UpdateVortexStrip3()
 
   if (timerVortex.elapsed())
   {
-    timerVortex.setDelay(20 + tuningValues.nanogain * 10);
+    timerVortex.setDelay(vertexBaseSpeed - (tuningValues.nanogain * 10));
 
     if (controlStates.agitation)
     {
@@ -354,7 +374,7 @@ void UpdateVortexStrip3()
 
     for (int i = 0; i < stripVortex3.numPixels(); i++)
     {
-       int pixelIndexAfterOffset = !controlStates.plumbus ? RollOverValue(pixelIndex, pixelOffset, 0, stripVortex1.numPixels()) : pixelIndex;
+      int pixelIndexAfterOffset = !controlStates.plumbus ? RollOverValue(pixelIndex, pixelOffset, 0, stripVortex1.numPixels()) : pixelIndex;
 
       if (i == pixelIndexAfterOffset)
       {
@@ -367,7 +387,7 @@ void UpdateVortexStrip3()
         else
         {
           // Solid color.
-          stripVortex3.setPixelColor(i, Color(0, 255, 0));
+          stripVortex3.setPixelColor(i, Color(0, 0, 255));
         }
       }
       else
@@ -386,6 +406,105 @@ void UpdateVortexStrip3()
   }
 }
 
+void UpdateVertexAll()
+{
+  static flasher flasherVertex(Pattern::Sin, 500, 255);
+  static flasher flasherVertex1(Pattern::RandomFlash, 500, 255);
+  static flasher flasherVertex2(Pattern::RandomFlash, 500, 255);
+  static flasher flasherVertex3(Pattern::RandomFlash, 500, 255);
+
+  if (state == warning)
+  {
+    flasherVertex1.setDelay(900);
+    flasherVertex2.setDelay(1000);
+    flasherVertex3.setDelay(1100);
+    flasherVertex1.setPattern(Pattern::Sin);
+    flasherVertex2.setPattern(Pattern::Sin);
+    flasherVertex3.setPattern(Pattern::Sin);
+  }
+  else if (state == critical)
+  {
+    flasherVertex1.setDelay(500);
+    flasherVertex2.setDelay(500);
+    flasherVertex3.setDelay(500);
+    flasherVertex1.setPattern(Pattern::RandomFlash);
+    flasherVertex2.setPattern(Pattern::RandomFlash);
+    flasherVertex3.setPattern(Pattern::RandomFlash);
+  }
+
+  static int oldPwmValue1;
+  if (oldPwmValue1 != flasherVertex1.getPwmValue())
+  {
+    oldPwmValue1 = flasherVertex1.getPwmValue();
+    stripVortex1.fill(Color(flasherVertex1.getPwmValue(), 0, 0), 0, stripVortex1.numPixels());
+    stripVortex1.show();
+  }
+
+  static int oldPwmValue2;
+  if (oldPwmValue2 != flasherVertex2.getPwmValue())
+  {
+    oldPwmValue2 = flasherVertex2.getPwmValue();
+    stripVortex2.fill(Color(0, flasherVertex2.getPwmValue(), 0), 0, stripVortex2.numPixels());
+    stripVortex2.show();
+  }
+
+  static int oldPwmValue3;
+  if (oldPwmValue3 != flasherVertex3.getPwmValue())
+  {
+    oldPwmValue3 = flasherVertex3.getPwmValue();
+    stripVortex3.fill(Color(0, 0, flasherVertex3.getPwmValue()), 0, stripVortex3.numPixels());
+    stripVortex3.show();
+  }
+
+  //stripVortex2.fill(Color(0, flasherVertex2.getPwmValue(), 0), 0, stripVortex1.numPixels());
+  // stripVortex3.fill(Color(0, 0, flasherVertex3.getPwmValue()), 0, stripVortex1.numPixels());
+
+  // stripVortex2.show();
+  //stripVortex3.show();
+}
+
+void UpdateGenerator()
+{
+  static flasher flasherGenerator(Pattern::Sin, 1000, 255);
+  flasherGenerator.setDelay(2000 - (tuningValues.nanogain * 100));
+  stripGenerator.fill(stripGenerator.Color(0, 0, flasherGenerator.getPwmValue()), 0, stripGenerator.numPixels());
+  stripGenerator.show();
+}
+
+void UpdateControlStates()
+{
+  static msTimer timerActive(3000);
+  if (timerActive.elapsed())
+  {
+
+    controlStates.injection = random(0, 2) == 0 ? true : false;
+
+    if (controlStates.injection)
+    {
+      controlStates.agitation = random(0, 2) == 0 ? true : false;
+    }
+    else
+    {
+      controlStates.agitation = false;
+    }
+
+    controlStates.supression = random(0, 2) == 0 ? true : false;
+    controlStates.plumbus = random(0, 2) == 0 ? true : false;
+  }
+}
+
+void CheckToggle()
+{
+  static bool oldBreakState;
+  bool breakState = digitalRead(PIN_TOGGLE_BRAKE);
+
+  if (oldBreakState != breakState)
+  {
+    oldBreakState = breakState;
+    activityFlag = true;
+  }
+}
+
 void setup()
 {
   Serial.begin(BAUD_RATE);
@@ -396,9 +515,9 @@ void setup()
   buttonSuppression.begin();
   buttonPlumbus.begin();
 
-  stripVortex1.setBrightness(127);
-  stripVortex2.setBrightness(127);
-  stripVortex3.setBrightness(127);
+  stripVortex1.setBrightness(65);
+  stripVortex2.setBrightness(65);
+  stripVortex3.setBrightness(65);
 
   stripGenerator.begin();
   stripVortex1.begin();
@@ -417,6 +536,11 @@ void setup()
 void loop()
 {
 
+  // TEMP
+  state = stable;
+  // TEMP
+  mode = active;
+
   CheckButtons();
 
   CheckPotentiometers();
@@ -425,9 +549,23 @@ void loop()
 
   UpdateLcdDisplay();
 
-  UpdateVortexStrip1();
-  UpdateVortexStrip2();
-  UpdateVortexStrip3();
+  UpdateGenerator();
+
+  if (state == stable)
+  {
+    UpdateVortexStrip1();
+    UpdateVortexStrip2();
+    UpdateVortexStrip3();
+  }
+  else
+  {
+    UpdateVertexAll();
+  }
+
+  if (mode == passive)
+  {
+    UpdateControlStates();
+  }
 
   static msTimer timerCircle(5);
   static byte wheelPos;
@@ -441,8 +579,4 @@ void loop()
     }
     stripCircle.show();
   }
-
-  static flasher flasherGenerator(Pattern::Sin, 1000, 255);
-  stripGenerator.fill(stripGenerator.Color(0, 0, flasherGenerator.getPwmValue()), 0, stripGenerator.numPixels());
-  stripGenerator.show();
 }

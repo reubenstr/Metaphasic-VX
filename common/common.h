@@ -1,7 +1,12 @@
+// Shared variables and methods for the collection of VX projects.
+// Note: some methods are crude and intended for non-critical functionality.
+
 #ifndef COMMON_H
 #define COMMON_H
 
 #define BAUD_RATE 57600
+
+bool activityFlag = false;
 
 enum states
 {
@@ -79,7 +84,7 @@ uint32_t Wheel(byte WheelPos)
 }
 
 
-
+// Count number of true values in bool array.
 int CountTruesInArray(bool *arr, int size)
 {
   int count = 0;
@@ -94,7 +99,7 @@ int CountTruesInArray(bool *arr, int size)
   return count;
 }
 
-// Disperses a quantity of true values within an bool array.
+// Disperses a quantity of true values within a bool array.
 bool RandomArrayFill(bool* array, int amountOfTrues, int size)
 {			
 	if (amountOfTrues > size)
