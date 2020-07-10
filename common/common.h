@@ -1,6 +1,9 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#define BAUD_RATE 57600
+
+
 enum states
 {
   stable = 0,

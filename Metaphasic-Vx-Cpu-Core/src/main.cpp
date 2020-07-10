@@ -357,7 +357,7 @@ void AbortSequence()
 void setup()
 {
   delay(500);
-  Serial.begin(9600);
+  Serial.begin(BAUD_RATE);
 
   buttonAbort.begin();
   buttonSkynet.begin();

@@ -250,7 +250,7 @@ void UpdateRightTriangle(bool fill)
 void setup()
 {
   delay(500);
-  Serial.begin(9600);
+  Serial.begin(BAUD_RATE);
 
   //pinMode(PIN_LED_POINTER_RED, OUTPUT);
   //pinMode(PIN_LED_POINTER_GREEN, OUTPUT);

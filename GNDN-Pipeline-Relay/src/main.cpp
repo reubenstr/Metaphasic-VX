@@ -327,7 +327,7 @@ void setup()
 {
   delay(500);
 
-  Serial.begin(57600);
+  Serial.begin(BAUD_RATE);
 
   pinMode(PIN_DECODER_S0, OUTPUT);
   pinMode(PIN_DECODER_S1, OUTPUT);
@@ -357,8 +357,6 @@ void setup()
 
 void loop()
 {
-
-
   mode = passive;   // TEMP
   state = stable;   // TEMP
 
