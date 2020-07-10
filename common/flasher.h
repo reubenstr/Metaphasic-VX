@@ -64,27 +64,18 @@ public:
 
     inline void reset()
     {
-        _oldMicros = 0;
+        _oldMicros = micros();
         sinIndex = 0;
         _pwmValue = 0;
+        _endOfCycle = false;
     }
 
     inline void repeat(bool repeat)
     {
         _repeat = repeat;
-    }
+    }   
 
-    inline void start()
-    {
-        _endOfCycle = false;
-        reset();
-    }
-
-     inline void stop()
-    {
-        _endOfCycle = true;
-        _repeat = false;
-    }
+  
 
     inline int getPwmValue()
     {

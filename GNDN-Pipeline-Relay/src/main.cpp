@@ -54,13 +54,13 @@ bool DeMultiplex(int channel)
 
 void UpdateSynapticGenerator(bool trigger)
 {
-  static flasher flasherFlash(Pattern::Sin, 500, 255);
+  static flasher flasherFlash(Pattern::Sin, 400, 255);
   flasherFlash.repeat(false);
 
   if (trigger)
   {
-    flasherFlash.start();
-  }    
+    flasherFlash.reset();
+  }
 
   stripGenerator.fill(stripGenerator.Color(0, flasherFlash.getPwmValue(), 0), 0, stripGenerator.numPixels());
   stripGenerator.show();
@@ -68,7 +68,6 @@ void UpdateSynapticGenerator(bool trigger)
 
 void UpdateLedDisplays()
 {
-
   static msTimer timer1(1000);
   static msTimer timer2(1000);
   static msTimer timer3(1000);
@@ -238,7 +237,8 @@ void UpdatePWMs()
   pwms1[13] = !DeMultiplex(9) ? flasherRouter.getPwmValue() : 0;
 
   // Post-Manafold 11
-  pwms1[11] = maxPwmGenericLed - flasherRouter.getPwmValue();
+  static flasher flasherManafold(Pattern::Sin, 1000, maxPwmGenericLed);
+  pwms1[11] = flasherManafold.getPwmValue();
 
   // Em. Pass: 12
   pwms1[12] = !DeMultiplex(6) ? maxPwmRedLed : 0;
@@ -261,11 +261,22 @@ void ToggleRelay(int relay)
 void ProcessSubspaceSwitches()
 {
   // Subspace Synthesis, channels 11, 12, 13, 14, 15
+  static msTimer timerDebounce(100);
+  static bool debounceFlag;
   static int oldSubspaceValue;
+
   int subspaceValue = DeMultiplex(11) + DeMultiplex(12) + DeMultiplex(13) + DeMultiplex(14) + DeMultiplex(15);
-  if (oldSubspaceValue != subspaceValue)
+
+  if (timerDebounce.elapsed())
+    debounceFlag = false;
+
+  if (oldSubspaceValue != subspaceValue && debounceFlag == false)
   {
     oldSubspaceValue = subspaceValue;
+
+    timerDebounce.resetDelay();
+    debounceFlag = true;
+
     ToggleRelay(random(0, 4));
     UpdateSynapticGenerator(true);
   }
@@ -275,34 +286,45 @@ void UpdateStripIndicators()
 {
   static flasher flasherManafold(Pattern::RandomReverseFlash, 500, 255);
   static flasher flasherMuliplex(Pattern::RandomReverseFlash, 500, 255);
-  //static flasher flasherGenerator(Pattern::RandomReverseFlash, 500, 255);
 
   int delay = state == stable ? 1600 : state == warning ? 800 : state == critical ? 400 : 0;
   flasherManafold.setDelay(delay);
   flasherMuliplex.setDelay(delay);
-  //flasherGenerator.setDelay(delay);
 
   if (state == stable)
   {
     stripManafold.fill(stripManafold.Color(0, 255, 0), 0, stripManafold.numPixels());
     stripMuliplex.fill(stripMuliplex.Color(0, 255, 0), 0, stripMuliplex.numPixels());
-    //stripGenerator.fill(stripGenerator.Color(0, 255, 0), 0, stripGenerator.numPixels());
   }
   else
   {
     stripManafold.fill(stripManafold.Color(flasherManafold.getPwmValue(), 0, 0), 0, stripManafold.numPixels());
     stripMuliplex.fill(stripMuliplex.Color(flasherMuliplex.getPwmValue(), 0, 0), 0, stripMuliplex.numPixels());
-    //stripGenerator.fill(stripGenerator.Color(flasherGenerator.getPwmValue(), flasherGenerator.getPwmValue(), 0), 0, stripGenerator.numPixels());
   }
 
   stripManafold.show();
-  stripMuliplex.show();
-  //stripGenerator.show();
+  stripMuliplex.show(); 
 }
+
+void UpdateRelayToggle()
+{
+  // Toggle relays when mode is active.
+  static msTimer timerRelays(2000);
+  int delayRelays = state == stable ? 1500 : state == warning ? 700 : state == critical ? 350 : 0;  
+  if (timerRelays.elapsed())
+  {
+    timerRelays.setDelay(delayRelays + random(0, delayRelays));
+    if (mode == active)
+    {
+      ToggleRelay(random(0, 3));
+      UpdateSynapticGenerator(true);
+    }
+  }
+}
+
 
 void setup()
 {
-
   delay(500);
 
   Serial.begin(57600);
@@ -317,11 +339,6 @@ void setup()
   pinMode(PIN_RELAY_LEFT_2, OUTPUT);
   pinMode(PIN_RELAY_RIGHT_1, OUTPUT);
   pinMode(PIN_RELAY_RIGHT_2, OUTPUT);
-
-  digitalWrite(PIN_RELAY_LEFT_1, LOW);  // TEMP
-  digitalWrite(PIN_RELAY_LEFT_2, LOW);  // TEMP
-  digitalWrite(PIN_RELAY_RIGHT_1, LOW); // TEMP
-  digitalWrite(PIN_RELAY_RIGHT_2, LOW); // TEMP
 
   Wire.begin();
   pwmController1.resetDevices();
@@ -341,9 +358,9 @@ void setup()
 void loop()
 {
 
-  // TEMP
-  mode = passive;
-  state = stable;
+
+  mode = passive;   // TEMP
+  state = stable;   // TEMP
 
   UpdatePWMs();
 
@@ -357,15 +374,5 @@ void loop()
 
   UpdateSynapticGenerator(false);
 
-  static msTimer timerRelays(2000);
-  int delayRelays = state == stable ? 1500 : state == warning ? 700 : state == critical ? 350 : 0;
-  timerRelays.setDelay(delayRelays);
-  if (timerRelays.elapsed())
-  {
-    if (mode == active)
-    {
-      ToggleRelay(random(0, 3));
-      UpdateSynapticGenerator(true);
-    }
-  }
+  UpdateRelayToggle();  
 }
