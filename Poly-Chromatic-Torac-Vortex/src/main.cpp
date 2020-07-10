@@ -1,12 +1,12 @@
-#include <Arduino.h>
+#include <Arduino.h>           // PlatformIO
 #include <Adafruit_NeoPixel.h> // https://github.com/adafruit/Adafruit_NeoPixel
 #include "PCA9685.h"           // https://github.com/NachtRaveVL/PCA9685-Arduino
 #include <TM1637Display.h>     // https://github.com/avishorp/TM1637
+#include <JC_Button.h>         // https://github.com/JChristensen/JC_Button
+#include <LiquidCrystal_I2C.h> // https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library
 #include "common.h"            // Local libary.
 #include "msTimer.h"           // Local libary.
 #include "flasher.h"           // Local libary.
-#include <LiquidCrystal_I2C.h>
-
 
 #define PIN_STRIP_GENERATOR 11
 #define PIN_STRIP_ROUND_1 10
@@ -23,8 +23,8 @@
 #define PIN_POT_CORRECTION A6
 
 #define LCD_COLUMNS 20
-#define LCD_ROWS   4
-#define PAGE   ((COLUMS) * (ROWS))
+#define LCD_ROWS 4
+#define PAGE ((COLUMS) * (ROWS))
 
 Adafruit_NeoPixel stripGenerator = Adafruit_NeoPixel(3, PIN_STRIP_GENERATOR, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripVortex1 = Adafruit_NeoPixel(16, PIN_STRIP_ROUND_1, NEO_GRB + NEO_KHZ800);
@@ -36,29 +36,30 @@ PCA9685 pwmController1;
 
 LiquidCrystal_I2C lcd(PCF8574_ADDR_A21_A11_A01, 4, 5, 6, 16, 11, 12, 13, 14, POSITIVE);
 
+Button buttonCycle(PIN_BUTTOM_CYCLE);
+Button buttonInjection(PIN_BUTTON_INJECTION);
+Button buttonAgitation(PIN_BUTTON_AGITATION);
+Button buttonSuppression(PIN_BUTTON_SUPRESSION);
+Button buttonPlumbus(PIN_BUTTON_PLUMBUS);
+
+struct ControlStates
+{
+  bool injection;
+  bool agitation;
+  bool supression;
+  bool plumbus;
+} controlStates;
 
 void UpdatePWMs()
 {
   uint16_t pwms1[16];
-  /*
-PIN_BUTTON_INJECTION
-PIN_BUTTON_AGITATION
-PIN_BUTTON_SUPRESSION
-PIN_BUTTON_PLUMBUS
-*/
-  if (!digitalRead(PIN_BUTTON_INJECTION))
-    Serial.write(0);
-  if (!digitalRead(PIN_BUTTON_AGITATION))
-    Serial.write(1);
-  if (!digitalRead(PIN_BUTTON_SUPRESSION))
-    Serial.write(2);
-  if (!digitalRead(PIN_BUTTON_PLUMBUS))
-    Serial.write(3);
 
-  pwms1[5] = !digitalRead(PIN_BUTTON_INJECTION) ? 4000 : 0;
-  pwms1[6] = !digitalRead(PIN_BUTTON_AGITATION) ? 4000 : 0;
-  pwms1[4] = !digitalRead(PIN_BUTTON_SUPRESSION) ? 4000 : 0;
-  pwms1[7] = !digitalRead(PIN_BUTTON_PLUMBUS) ? 4000 : 0;
+
+
+  pwms1[5] = controlStates.injection ? maxPwmGenericLed : 0;
+  pwms1[6] = controlStates.agitation ? maxPwmGenericLed : 0;
+  pwms1[4] = controlStates.supression ? maxPwmGenericLed : 0;
+  pwms1[7] = controlStates.plumbus ? maxPwmGenericLed : 0;
 
   pwms1[9] = 4095;
   pwms1[10] = map(analogRead(PIN_POT_NANOGAIN), 0, 1023, 0, 4095);
@@ -67,10 +68,72 @@ PIN_BUTTON_PLUMBUS
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
 
+void UpdateLcdDisplay()
+{
+  static msTimer timerLcd(1000);
+  static int message, oldMessage;
+  const int numMessages = 4;
+
+  buttonCycle.read();
+  if (buttonCycle.wasPressed())
+  {
+    if (++message > numMessages)
+      message = 0;
+  }
+
+  if (timerLcd.elapsed())
+  {
+    if (mode = active)
+    {
+      int message = random(0, numMessages);
+    }
+  }
+
+  if (oldMessage != message)
+  {
+    oldMessage = message;
+    lcd.setCursor(0, 0);
+
+    if (message == 0)
+      lcd.print(F("PCF8574 is OK.  "));
+    if (message == 1)
+    {
+      int gain = random(60, 100);
+      lcd.print(F("Hypergain:    "));
+      lcd.print(gain, DEC);
+      lcd.print(F("%"));
+    }
+
+    if (message == 2)
+      lcd.print(F("Morty calm.     "));
+    if (message == 3)
+      lcd.print(F("Toraq laser active."));
+  }
+}
+
+void CheckButtons()
+{
+
+  buttonInjection.read();
+  buttonAgitation.read();
+  buttonSuppression.read();
+  buttonPlumbus.read();
+
+  if (buttonInjection.wasPressed())
+    controlStates.injection = !controlStates.injection;
+  if (buttonAgitation.wasPressed())
+    controlStates.agitation = !controlStates.agitation;
+  if (buttonSuppression.wasPressed())
+    controlStates.supression = !controlStates.supression;
+  if (buttonPlumbus.wasPressed())
+    controlStates.plumbus = !controlStates.plumbus;
+}
+
 void setup()
 {
   Serial.begin(BAUD_RATE);
 
+  /*
   pinMode(PIN_BUTTON_INJECTION, INPUT);
   pinMode(PIN_BUTTON_AGITATION, INPUT);
   pinMode(PIN_BUTTON_SUPRESSION, INPUT);
@@ -80,6 +143,13 @@ void setup()
   digitalWrite(PIN_BUTTON_AGITATION, HIGH);
   digitalWrite(PIN_BUTTON_SUPRESSION, HIGH);
   digitalWrite(PIN_BUTTON_PLUMBUS, HIGH);
+  */
+
+  buttonCycle.begin();
+  buttonInjection.begin();
+  buttonAgitation.begin();
+  buttonSuppression.begin();
+  buttonPlumbus.begin();
 
   stripVortex1.setBrightness(127);
   stripVortex2.setBrightness(127);
@@ -102,10 +172,11 @@ void setup()
 void loop()
 {
 
+CheckButtons();
+
   UpdatePWMs();
 
-
-  lcd.print(F("PCF8574 is OK...")); 
+  UpdateLcdDisplay();
 
   static flasher flasherGenerator(Pattern::Sin, 1000, 255);
   stripGenerator.fill(stripGenerator.Color(0, flasherGenerator.getPwmValue(), 0), 0, stripGenerator.numPixels());

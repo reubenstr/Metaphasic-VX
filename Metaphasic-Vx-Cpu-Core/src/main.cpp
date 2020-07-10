@@ -5,7 +5,7 @@
 #include <Adafruit_NeoPixel.h> // https://github.com/adafruit/Adafruit_NeoPixel
 #include <common.h>            // Local libary.
 #include <msTimer.h>           // Local libary.
-#include <flasher.h>         // Local libary.
+#include <flasher.h>           // Local libary.
 
 #define PIN_MATRIX_DATAIN 4
 #define PIN_MATRIX_LOAD 3
@@ -63,7 +63,6 @@ enum aiStates
   kitt,
   hal
 } aiState;
-
 
 const int numErrors = 4;
 bool errors[numErrors];
@@ -298,8 +297,6 @@ void CheckButtons()
     }
   }
 }
-
-
 
 void ProcessErrors()
 {
