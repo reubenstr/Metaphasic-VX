@@ -15,10 +15,10 @@
 #define PIN_TOGGLE_1 A0
 #define PIN_TOGGLE_2 A1
 #define PIN_WS2812B_CENTER_INDICATOR_LEFT 12
-#define PIN_WS2812B_CENTER_INDICATOR_RIGHT -1
-#define PIN_SERVO_RED 4
-#define PIN_SERVO_GREEN 3
-#define PIN_SERVO_BLUE 2
+#define PIN_WS2812B_CENTER_INDICATOR_RIGHT 9
+#define PIN_SERVO_RED 2
+#define PIN_SERVO_GREEN 4
+#define PIN_SERVO_BLUE 7
 
 PCA9685 pwmController1;
 PCA9685 pwmController2;
@@ -90,41 +90,52 @@ int RandomServoPosition()
 
 void SetTriServoValues()
 {
-  static msTimer redTimer(100);
-  static msTimer greenTimer(100);
-  static msTimer blueTimer(100);
+  static msTimer timerRed(100);
+  static msTimer timerGreen(100);
+  static msTimer timerBlue(100);
 
   static msTimer redDetachTimer(50);
   static msTimer greenDetachTimer(50);
   static msTimer blueDetachTimer(50);
 
   int redPos, greenPos, bluePos;
-  int delayMs = state == stable ? 4000 : state == warning ? 2000 : state == critical ? 1000 : 0;
+  int delayMs = state == stable ? 4000 : state == warning ? 3000 : state == critical ? 2000 : 0;
 
-  if (redTimer.elapsed())
+  int bias = map(analogRead(PIN_ANALOG_POT_HEISENBERG_BIAS), 0, 1023, 0, 15);
+
+  if (timerRed.elapsed())
   {
-    redTimer.setDelay(delayMs + random(0, delayMs));
+    timerRed.setDelay(delayMs + random(0, delayMs));
     redPos = RandomServoPosition();
-    servoRed.attach(PIN_SERVO_RED);
-    servoRed.write(redPos);
+    if (mode == active)
+    {
+      servoRed.attach(PIN_SERVO_RED);
+      servoRed.write(redPos + bias);
+    }
     redDetachTimer.resetDelay();
   }
 
-  if (greenTimer.elapsed())
+  if (timerGreen.elapsed())
   {
-    greenTimer.setDelay(delayMs + random(0, delayMs));
+    timerGreen.setDelay(delayMs + random(0, delayMs));
     greenPos = RandomServoPosition();
-    servoGreen.attach(PIN_SERVO_GREEN);
-    servoGreen.write(greenPos);
+    if (mode == active)
+    {
+      servoGreen.attach(PIN_SERVO_GREEN);
+      servoGreen.write(greenPos + bias);
+    }
     greenDetachTimer.resetDelay();
   }
 
-  if (blueTimer.elapsed())
+  if (timerBlue.elapsed())
   {
-    blueTimer.setDelay(delayMs + random(0, delayMs));
+    timerBlue.setDelay(delayMs + random(0, delayMs));
     bluePos = RandomServoPosition();
-    servoBlue.attach(PIN_SERVO_BLUE);
-    servoBlue.write(bluePos);
+    if (mode == active)
+    {
+      servoBlue.attach(PIN_SERVO_BLUE);
+      servoBlue.write(bluePos + bias);
+    }
     blueDetachTimer.resetDelay();
   }
 
@@ -146,7 +157,8 @@ void SetTriValues()
   static msTimer timer(100);
   static signed int trigainDeltaTarget, tripanGammaTarget, triphaseBetaTarget;
 
-  int delay = state == stable ? 150 : state == warning ? 100 : state == critical ? 50 : 0;
+  int delay = state == stable ? 60 : state == warning ? 30 : state == critical ? 10 : 0;
+  delay += map(analogRead(PIN_ANALOG_POT_MIDI_CLORIAN_COMPENSATION), 0, 1023, 0, 50);
 
   timer.setDelay(delay);
 
@@ -193,34 +205,35 @@ void SetTriValues()
   }
 }
 
-void UpdateLeftTriangle(bool updateServosFlag)
+void UpdateLeftTriangle()
 {
 
-  if (updateServosFlag)
-  {
-    SetTriServoValues();
-  }
-  else
-  {
-    servoRed.detach();
-    servoGreen.detach();
-    servoBlue.detach();
-  }
+  SetTriServoValues();
 
   static flasher flasherRed(Pattern::Sin, 1000, 255);
   static flasher flasherGreen(Pattern::Sin, 1000, 255);
   static flasher flasherBlue(Pattern::Sin, 1000, 255);
 
+  if (digitalRead(PIN_TOGGLE_1))
+  {
+    flasherRed.setPattern(Pattern::Sin);
+    flasherGreen.setPattern(Pattern::Sin);
+    flasherBlue.setPattern(Pattern::Sin);
+  }
+  else
+  {
+    flasherRed.setPattern(Pattern::RandomFlash);
+    flasherGreen.setPattern(Pattern::RandomFlash);
+    flasherBlue.setPattern(Pattern::RandomFlash);
+  }
+
   analogWrite(PIN_LED_POINTER_RED, flasherRed.getPwmValue());
   analogWrite(PIN_LED_POINTER_GREEN, flasherGreen.getPwmValue());
   analogWrite(PIN_LED_POINTER_BLUE, flasherBlue.getPwmValue());
-
-
 }
 
 void UpdateRightTriangle(bool fill)
 {
-
   SetTriValues();
 
   UpdatePWMs(fill);
@@ -243,7 +256,6 @@ void UpdateRightTriangle(bool fill)
   {
     stripIndicatorRight.setPixelColor(0, stripIndicatorRight.Color(255, 0, 0));
   }
-
   stripIndicatorRight.show();
 }
 
@@ -251,10 +263,6 @@ void setup()
 {
   delay(500);
   Serial.begin(BAUD_RATE);
-
-  //pinMode(PIN_LED_POINTER_RED, OUTPUT);
-  //pinMode(PIN_LED_POINTER_GREEN, OUTPUT);
-  //pinMode(PIN_LED_POINTER_BLUE, OUTPUT);
 
   pinMode(PIN_TOGGLE_1, INPUT);
   digitalWrite(PIN_TOGGLE_1, HIGH);
@@ -270,30 +278,20 @@ void setup()
   pwmController2.setPWMFrequency(1500);
 
   stripIndicatorLeft.begin();
-  stripIndicatorLeft.setBrightness(127);
-
   stripIndicatorRight.begin();
-
-  servoRed.attach(PIN_SERVO_RED);
-  servoGreen.attach(PIN_SERVO_GREEN);
-  servoBlue.attach(PIN_SERVO_BLUE);
 }
 
 void loop()
 {
 
   state = critical;
+  mode = passive;
 
-  static bool updateServosFlag = false;
-  static bool oldtoggle1State = digitalRead(PIN_TOGGLE_1);
+  int brightnessOffset = map(analogRead(PIN_ANALOG_POT_ATOMIC_TRI_BOND), 0, 1023, 0, 200);
+  stripIndicatorLeft.setBrightness(100 - brightnessOffset / 2.5);
+  stripIndicatorRight.setBrightness(255 - brightnessOffset);
 
-  if (oldtoggle1State != digitalRead(PIN_TOGGLE_1))
-  {
-    oldtoggle1State = digitalRead(PIN_TOGGLE_1);
-    updateServosFlag = !updateServosFlag;
-  }
-
-  UpdateLeftTriangle(updateServosFlag);
+  UpdateLeftTriangle();
 
   bool fill = digitalRead(PIN_TOGGLE_2);
   UpdateRightTriangle(fill);
