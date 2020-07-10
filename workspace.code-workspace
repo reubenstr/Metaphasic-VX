@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "Metaphasic-Vx-Cpu-Core"
+		},
+		{
+			"name": "Bi-Triaxial-Force-Alignment",
+			"path": "Bi-Triaxial-Force-Alignment"
+		},
+		{
+			"name": "GNDN-Pipeline-Relay",
+			"path": "GNDN-Pipeline-Relay"
+		},
+		{
+			"name": "Poly-Chromatic-Torac-Vortex",
+			"path": "Poly-Chromatic-Torac-Vortex"
+		}
+	],
+	"settings": {}
+}
