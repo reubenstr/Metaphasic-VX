@@ -12,7 +12,8 @@ enum states
 {
   stable = 0,
   warning = 1,
-  critical = 2
+  critical = 2,
+  unknown = 3
 } state;
 
 enum modes
@@ -55,8 +56,7 @@ uint32_t Fade(uint32_t color, int amt)
 	
 	r -= amt;
 	g -= amt;
-	b -= amt;
-	
+	b -= amt;	
 	
 	if (r < 0) r = 0;
 	if (g < 0) g = 0;
