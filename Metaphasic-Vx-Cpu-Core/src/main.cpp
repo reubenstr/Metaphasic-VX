@@ -243,20 +243,7 @@ void UpdatePWMs()
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
 
-void SetStrips()
-{
-  if (sentienceDetected)
-  {
-    static flasher flasherStrip(Pattern::OnOff, 1000, 255);
-    int colorValue = flasherStrip.getPwmValue();
-    stripSentienceDetected.fill(stripSentienceDetected.Color(colorValue, 0, 0), 0, stripSentienceDetected.numPixels());
-  }
-  else
-  {
-    stripSentienceDetected.fill(stripSentienceDetected.Color(0, 0, 0), 0, stripSentienceDetected.numPixels());
-  }
-  stripSentienceDetected.show();
-}
+
 
 void CheckButtons()
 {
@@ -274,63 +261,66 @@ void CheckButtons()
     }
   }
 
-  if (!sentienceDetected)
+  if (buttonSkynet.wasPressed())
   {
-    if (buttonSkynet.wasPressed())
-    {
+    if (!sentienceDetected)
       aiState = skynet;
-    }
+    activityFlag = true;
+  }
 
-    if (buttonLcars.wasPressed())
-    {
+  if (buttonLcars.wasPressed())
+  {
+    if (!sentienceDetected)
       aiState = lcars;
-    }
+    activityFlag = true;
+  }
 
-    if (buttonKitt.wasPressed())
-    {
+  if (buttonKitt.wasPressed())
+  {
+    if (!sentienceDetected)
       aiState = kitt;
-    }
+    activityFlag = true;
+  }
 
-    if (buttonHal.wasPressed())
-    {
+  if (buttonHal.wasPressed())
+  {
+    if (!sentienceDetected)
       aiState = hal;
-    }
+    activityFlag = true;
   }
 }
 
 void ProcessErrors()
 {
   static msTimer errorTimer(1000);
+  int delay = state == stable ? 2500 : state == warning ? 1500 : state == critical ? 750 : 0;
+
   if (errorTimer.elapsed())
   {
-
-    for (int i = 0; i < numErrors; i++)
-    {
-      errors[i] = false;
-    }
-
-    int errorCount = CountTruesInArray(errors, numErrors);
-    int targetErrorCount = (int)state + 1;
-
-    while (errorCount != targetErrorCount)
-    {
-      if (errorCount > targetErrorCount)
-      {
-        errors[random(0, numErrors + 1)] = false;
-      }
-      if (errorCount < targetErrorCount)
-      {
-        errors[random(0, numErrors + 1)] = true;
-      }
-      errorCount = CountTruesInArray(errors, numErrors);
-    }
+    errorTimer.setDelay(random(delay, delay * 2));
+    int quantity = state == stable ? 1 : state == warning ? 2 : state == critical ? 3 : 0;
+    RandomArrayFill(errors, quantity, sizeof(errors));
   }
+}
+
+void UpdateSentienceIndicator()
+{
+ if (sentienceDetected)
+  {
+    static flasher flasherStrip(Pattern::OnOff, 1000, 255);
+    stripSentienceDetected.fill(stripSentienceDetected.Color(flasherStrip.getPwmValue(), 0, 0), 0, stripSentienceDetected.numPixels());
+  }
+  else
+  {
+    stripSentienceDetected.fill(stripSentienceDetected.Color(0, 0, 0), 0, stripSentienceDetected.numPixels());
+  }
+  stripSentienceDetected.show();
 }
 
 void AbortSequence()
 {
   sentienceDetected = false;
-  SetStrips();
+  UpdateSentienceIndicator();
 
   pwmController1.setAllChannelsPWM(0);
 
@@ -348,6 +338,39 @@ void AbortSequence()
     int pwmValue = ((i % 2) == 0) ? 0 : 1500;
     pwmController1.setAllChannelsPWM(pwmValue);
     delay(250);
+  }
+}
+
+void UpdateSentience()
+{
+  static msTimer timerSentience(20000);
+  static msTimer timerSentienceComplete(8000);
+  if (timerSentience.elapsed())
+  {
+    sentienceDetected = true;
+    timerSentienceComplete.resetDelay();
+  }
+
+  if (timerSentienceComplete.elapsed())
+  {
+    sentienceDetected = false;
+  }
+
+  if (abortFlag)
+  {
+    abortFlag = false;    
+    AbortSequence();
+    timerSentience.resetDelay();
+  } 
+}
+
+void CheckToggle()
+{
+  static bool oldToggleSuppression;
+  if (oldToggleSuppression != digitalRead(PIN_TOGGLE_SUPPRESSION))
+  {
+    oldToggleSuppression = digitalRead(PIN_TOGGLE_SUPPRESSION);
+    activityFlag = true;
   }
 }
 
@@ -393,19 +416,17 @@ void loop()
   //sentienceDetected = true; // TEMP
   //aiState = lcars;          // TEMP
 
-  if (abortFlag)
-  {
-    abortFlag = false;
-    AbortSequence();
-  }
-
   static msTimer flipFlopTimer(2500);
   if (flipFlopTimer.elapsed())
   {
     flipFlop = !flipFlop;
   }
 
-  SetStrips();
+  UpdateSentience();
+
+  UpdateSentienceIndicator();
+
+  CheckToggle(); 
 
   UpdatePWMs();
 
@@ -416,19 +437,11 @@ void loop()
   MemoryBank();
 
   if (aiState == skynet)
-  {
     Skynet();
-  }
   else if (aiState == lcars)
-  {
     Lcars();
-  }
   else if (aiState == kitt)
-  {
     Kitt();
-  }
   else if (aiState == hal)
-  {
     Hal();
-  }
 }

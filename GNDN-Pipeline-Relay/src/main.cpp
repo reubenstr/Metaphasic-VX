@@ -278,7 +278,7 @@ void ProcessSubspaceSwitches()
     debounceFlag = true;
 
     ToggleRelay(random(0, 4));
-    UpdateSynapticGenerator(true);
+    UpdateSynapticGenerator(true);    
   }
 }
 
@@ -322,6 +322,21 @@ void UpdateRelayToggle()
   }
 }
 
+
+void CheckToggleActivity()
+{
+  static int oldToggleSum;
+  int toggleSum = 0;
+  for(int i = 0; i < 16; i++)
+  {
+    toggleSum += DeMultiplex(i);
+  }
+  if (oldToggleSum != toggleSum)
+  {
+    oldToggleSum = toggleSum;
+    activityFlag = true;
+  }  
+}
 
 void setup()
 {
@@ -373,4 +388,7 @@ void loop()
   UpdateSynapticGenerator(false);
 
   UpdateRelayToggle();  
+
+  CheckToggleActivity();
+  
 }

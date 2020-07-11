@@ -99,7 +99,7 @@ int CountTruesInArray(bool *arr, int size)
   return count;
 }
 
-// Disperses a quantity of true values within a bool array.
+// Disperses a quantity of true values within a bool array with no overlap.
 bool RandomArrayFill(bool* array, int amountOfTrues, int size)
 {			
 	if (amountOfTrues > size)
