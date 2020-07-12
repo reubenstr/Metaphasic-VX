@@ -93,6 +93,8 @@ public:
 
             if (_pattern == Pattern::Solid)
             {
+                //_microsPerStep = (float)_delay * 1000.0;
+
                 _pwmValue = _maxPwm;
             }
 
@@ -104,6 +106,7 @@ public:
                 if (_pwmValue > _maxPwm)
                 {
                     _pwmValue = 0;
+                    _endOfCycle = true;
                 }
             }
             else if (_pattern == Pattern::Sin)

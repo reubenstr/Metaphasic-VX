@@ -16,9 +16,9 @@
 #define PIN_TOGGLE_PULSE 11
 #define PIN_TOGGLE_DECAY 10
 #define PIN_OFFSET_0 9
-#define PIN_OFFSET_0 8
-#define PIN_OFFSET_0 7
-#define PIN_OFFSET_0 6
+#define PIN_OFFSET_1 8
+#define PIN_OFFSET_2 7
+#define PIN_OFFSET_3 6
 #define PIN_BUTTON_POLY 3
 #define PIN_BUTTON_MONO 2
 #define PIN_LED_BACKGROUND 4
@@ -34,6 +34,8 @@ PCA9685 pwmController2;
 
 Button buttonPoly(PIN_BUTTON_POLY);
 Button buttonMono(PIN_BUTTON_MONO);
+
+bool genesisFlag;
 
 enum SeedState
 {
@@ -97,21 +99,24 @@ void UpdateWarningIndicators()
 {
   static bool warnings[6];
   static flasher flasherWarnings[6];
-  static msTimer timerWarning(5000);
+  static msTimer timerWarning(3000);
 
-  int delay = state == stable ? 1000 : state == warning ? 750 : state == critical ? 500 : 0;
+  int delayTimer = state == stable ? 5000 : state == warning ? 3000 : state == critical ? 2000 : 0;
+  int delayFlash = state == stable ? 1000 : state == warning ? 750 : state == critical ? 500 : 0;
 
   if (timerWarning.elapsed())
   {
+    timerWarning.setDelay(delayTimer);
 
-  int numWarnings = state == stable ? 1 : state == warning ? 2 : state == critical ? 3 : 0;
-  numWarnings += random(0, 2);
+    int numWarnings = state == stable ? 1 : state == warning ? 2 : state == critical ? 3 : 0;
+    numWarnings = random(0, numWarnings + 1);
 
     RandomArrayFill(warnings, numWarnings, sizeof(warnings));
 
     for (int i = 0; i < 6; i++)
     {
-      flasherWarnings[i].setDelay(delay + random(0, 100));
+      flasherWarnings[i].setPattern(Pattern::Solid);
+      flasherWarnings[i].setDelay(delayFlash + random(0, 100));
       flasherWarnings[i].repeat(warnings[i]);
     }
   }
@@ -128,7 +133,6 @@ void UpdateWarningIndicators()
 
 void UpdateChamber()
 {
-
   static msTimer timer(20);
   static flasher flasherWarnings[7];
   static byte wheelPos;
@@ -164,24 +168,50 @@ void UpdatePWMs()
   uint16_t pwms1[16];
 
   // Update LED segment bar.
-  static msTimer timerIntensity(1000);
-  static int intensity;
+  static msTimer timerIntensity(250);
+  static int targetIntensity;
+  static int currentIntensity;
 
   if (timerIntensity.elapsed())
   {
-    intensity = random(0, 10);
+    if (currentIntensity == targetIntensity)
+    {
+      targetIntensity = random(0, 10);
+    }
+    else
+    {
+      if (currentIntensity < targetIntensity)
+        currentIntensity++;
+      if (currentIntensity > targetIntensity)
+        currentIntensity--;
+    }
   }
 
-  for (int i = 6; i < 16; i++)
-  {
-    pwms1[i] = i - 6 >= intensity ? maxPwmGenericLed : 0;
-  }
+  pwms1[6] = 0 >= 9 - currentIntensity ? 1500 : 0;
+  pwms1[7] = 1 >= 9 - currentIntensity ? 1500 : 0;
+  pwms1[8] = 2 >= 9 - currentIntensity ? 4095 : 0;
+  pwms1[9] = 3 >= 9 - currentIntensity ? 4095 : 0;
+  pwms1[10] = 4 >= 9 - currentIntensity ? 4095 : 0;
+  pwms1[11] = 5 >= 9 - currentIntensity ? 800 : 0;
+  pwms1[12] = 6 >= 9 - currentIntensity ? 800 : 0;
+  pwms1[13] = 7 >= 9 - currentIntensity ? 800 : 0;
+  pwms1[14] = 8 >= 9 - currentIntensity ? 800 : 0;
+  pwms1[15] = 9 >= 9 - currentIntensity ? 4095 : 0;
 
   // Update buttons and indicators.
 
-  pwms1[4] = intensity > 7 ? maxPwmGenericLed : 0;
-  pwms1[2] = seedState == poly ? maxPwmGenericLed : 0;
+  static flasher flasherGenensis(Pattern::Sin, 1000, 4095);
+  //flasherGenensis.repeat(false);
+  if (genesisFlag)
+  {
+    genesisFlag = false;
+    flasherGenensis.reset();
+  }
+
+  pwms1[5] = flasherGenensis.getPwmValue();
+  pwms1[4] = currentIntensity > 7 ? maxPwmGenericLed : 0;  
   pwms1[3] = seedState == mono ? maxPwmGenericLed : 0;
+  pwms1[2] = seedState == poly ? maxPwmGenericLed : 0;
 
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
@@ -210,18 +240,66 @@ void UpdateStars()
   {
   }
 
+  static signed int nodeMap[15][4] = {{1, -1, -1, -1},
+                                      {0, 12, -1, -1},
+                                      {8, -1, -1, -1},
+                                      {12, -1, -1, -1},
+                                      {11, 8, -1, -1},
+                                      {11, 6, -1, -1},
+                                      {5, -1, -1, -1},
+                                      {13, 12, 11, -1},
+                                      {2, 10, 4, -1},   // 8
+                                      {10, -1, -1, -1}, // 9
+                                      {8, 9, -1, -1},   // 10
+                                      {14, 7, 5, 4},    // 11
+                                      {3, 1, 7, -1},
+                                      {7, -1, -1, -1},
+                                      {11, -1, -1, -1}};
+
+  static msTimer timerNode(3000);
+  static bool nodeStates[15];
+  static int start = 9;
   uint16_t pwms2[16];
-  static int node;
-  static msTimer timerNode(1000);
-  if (timerNode.elapsed())
-  {
-    if (++node > 15)
-      node = 0;
-  }
+  bool nodeStatesUpdates[15];
+  nodeStates[start] = true;
+
+  genesisFlag = true;
 
   for (int i = 0; i < 15; i++)
   {
-    pwms2[i] = i == node ? maxPwmBlueLed : 0;
+    nodeStatesUpdates[i] = false;
+  }
+
+  if (timerNode.elapsed())
+  {
+    for (int i = 0; i < 15; i++)
+    {
+      if (nodeStates[i])
+      {
+        for (int j = 0; j < 4; j++)
+        {
+          if (nodeMap[i][j] != -1)
+          {
+            Serial.write(nodeMap[i][j]);
+            nodeStatesUpdates[nodeMap[i][j]] = true;
+          }
+        }
+      }
+    }
+
+    for (int i = 0; i < 15; i++)
+    {
+      if (nodeStatesUpdates[i])
+      {
+        nodeStates[i] = true;
+      }
+    }
+  }
+
+  static flasher flasherNodes[15]; // maxPwmBlueLed
+  for (int i = 0; i < 15; i++)
+  {
+    pwms2[i] = nodeStates[i] ? flasherNodes[i].getPwmValue() : 0;
   }
 
   pwmController2.setChannelsPWM(0, 16, pwms2);
@@ -231,15 +309,16 @@ void setup()
 {
   Serial.begin(BAUD_RATE);
 
-  pinMode(PIN_LED_BACKGROUND, LOW);
+  //pinMode(PIN_LED_BACKGROUND, LOW);
 
   Wire.begin();
   pwmController1.resetDevices();
-  pwmController1.init(0x40);
+  pwmController1.init(0x00);
   pwmController1.setPWMFrequency(1500);
-  pwmController1.init(0x41);
-  pwmController1.setPWMFrequency(1500);
+  pwmController2.init(0x01);
+  pwmController2.setPWMFrequency(1500);
 
+  stripChamber.begin();
   stripGlyph.begin();
   stripStates.begin();
   stripWarning1.begin();
@@ -272,9 +351,9 @@ void loop()
 
   UpdateWarningIndicators();
 
-  //UpdateChamber();
+  UpdateChamber();
 
-  //UpdatePWMs();
+  UpdatePWMs();
 
-  //UpdateStars();
+  UpdateStars();
 }
