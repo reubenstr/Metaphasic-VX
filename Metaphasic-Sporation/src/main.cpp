@@ -12,9 +12,9 @@
 #define PIN_STRIP_GLYPH_INDICATORS A2
 #define PIN_STRIP_WARNING_1_INDICATOR A1
 #define PIN_STRIP_WARNING_2_INDICATOR A3
-#define PIN_TOGGLE_ASYNC 12
-#define PIN_TOGGLE_PULSE 11
-#define PIN_TOGGLE_DECAY 10
+#define PIN_TOGGLE_ASYNC 10
+#define PIN_TOGGLE_PULSE 12
+#define PIN_TOGGLE_DECAY 11
 #define PIN_OFFSET_0 9
 #define PIN_OFFSET_1 8
 #define PIN_OFFSET_2 7
@@ -75,7 +75,7 @@ void UpdateGlyphIndicator()
 
     RandomArrayFill(activeGlyphs, fillAmount, sizeof(activeGlyphs));
 
-    for (int i = 0; i < stripGlyph.numPixels(); i++)
+    for (int i = 0; i < (int)stripGlyph.numPixels(); i++)
     {
       uint32_t color;
       if (state == critical)
@@ -152,30 +152,45 @@ void UpdateChamber()
   static msTimer timer(20);
   static byte wheelPos;
 
+  int delay = !digitalRead(PIN_TOGGLE_DECAY) ? 2 : 20;
+  timer.setDelay(delay);
+
   if (timer.elapsed())
   {
     wheelPos++;
     if (seedState == poly)
     {
-      for (signed int i = 0; i < stripChamber.numPixels(); i++)
+      for (int i = 0; i < (int)stripChamber.numPixels(); i++)
       {
         stripChamber.setPixelColor(i, Wheel(((i * 256 / stripChamber.numPixels()) + wheelPos) & 255));
       }
     }
     else if (seedState == mono)
     {
-      for (signed int i = 0; i < stripChamber.numPixels(); i++)
+      for (int i = 0; i < (int)stripChamber.numPixels(); i++)
       {
         stripChamber.setPixelColor(i, Wheel(wheelPos));
       }
     }
   }
 
-  digitalRead(PIN_TOGGLE_ASYNC);
+  static flasher flasherBrightness(Pattern::Sin, 1500, 200);
 
-  // PIN_TOGGLE_ASYNC
-  // PIN_TOGGLE_PULSE
-  // PIN_TOGGLE_DECAY
+  if (!digitalRead(PIN_TOGGLE_PULSE))
+  {
+    stripChamber.setBrightness(255 - flasherBrightness.getPwmValue());
+  }
+
+  static msTimer timerAsync(1000);
+  static int blackoutPixel;
+  if (!digitalRead(PIN_TOGGLE_ASYNC))
+  {
+    if (timerAsync.elapsed())
+    {
+      blackoutPixel = random(0, stripChamber.numPixels());
+    }
+    stripChamber.setPixelColor(blackoutPixel, 0);
+  }
 
   stripChamber.show();
 }
@@ -233,7 +248,7 @@ void UpdatePWMs()
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
 
-void UpdateStars()
+void UpdateCloudBank9()
 {
 
   static msTimer timerNode(3000);
@@ -276,7 +291,17 @@ void UpdateStars()
     {
       nodeStates[i] = false;
     }
-    nodeStates[random(0, 16)] = true;
+    if (seedState == poly)
+    {
+      int selection1[4] = {0, 1, 3, 12}; 
+      nodeStates[selection1[random(0, 4)]] = true;
+      int selection2[4] = {9, 10, 8, 2}; 
+      nodeStates[selection2[random(0, 4)]] = true;
+    }
+    else if (seedState == mono)
+    {
+      nodeStates[random(0, 16)] = true;
+    }
   }
 
   for (int i = 0; i < 15; i++)
@@ -410,7 +435,7 @@ void loop()
 
   UpdatePWMs();
 
-  UpdateStars();
+  UpdateCloudBank9();
 
   CheckFxOffset();
 
