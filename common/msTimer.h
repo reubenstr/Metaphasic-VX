@@ -39,6 +39,11 @@ public:
     return 0;
   }
 
+  inline void ForceTrigger()
+  {
+    _oldMillis = 0;
+  }
+
   // Set delay and reset timer.
   inline void setDelayAndReset(unsigned long delay)
   {

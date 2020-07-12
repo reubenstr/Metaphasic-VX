@@ -21,13 +21,14 @@
 #define PIN_OFFSET_3 6
 #define PIN_BUTTON_POLY 3
 #define PIN_BUTTON_MONO 2
-#define PIN_LED_BACKGROUND 4
+#define PIN_STRIP_BACKGROUND 4
 
 Adafruit_NeoPixel stripChamber = Adafruit_NeoPixel(7, PIN_STRIP_SPORATION_CHAMBER, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripGlyph = Adafruit_NeoPixel(25, PIN_STRIP_GLYPH_INDICATORS, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripStates = Adafruit_NeoPixel(15, PIN_STRIP_STATE_INDICATORS, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripWarning1 = Adafruit_NeoPixel(9, PIN_STRIP_WARNING_1_INDICATOR, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripWarning2 = Adafruit_NeoPixel(9, PIN_STRIP_WARNING_2_INDICATOR, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripBackground = Adafruit_NeoPixel(22, PIN_STRIP_BACKGROUND, NEO_GRB + NEO_KHZ800);
 
 PCA9685 pwmController1;
 PCA9685 pwmController2;
@@ -102,7 +103,7 @@ void UpdateStateIndicators()
   static flasher flasher(Pattern::Sin, 1000, 255);
 
   int fillStart = state == stable ? 0 : state == warning ? 1 : state == critical ? 2 : 0;
-  uint32_t color = state == stable ? Color(0, flasher.getPwmValue(), 0) : state == warning ? Color(flasher.getPwmValue() / 2, flasher.getPwmValue() / 2, 0) : state == critical ? Color(flasher.getPwmValue(), 0, 0) : 0;
+  uint32_t color = state == stable ? Color(0, flasher.getPwmValue(), 0) : state == warning ? Color(flasher.getPwmValue() / 2, flasher.getPwmValue() / 2.2, 0) : state == critical ? Color(flasher.getPwmValue(), 0, 0) : 0;
   Pattern pattern = state == stable ? Pattern::Solid : state == warning ? Pattern::RandomReverseFlash : state == critical ? Pattern::Sin : Pattern::Solid;
 
   flasher.setPattern(pattern);
@@ -116,16 +117,24 @@ void UpdateWarningIndicators()
   static bool warnings[6];
   static flasher flasherWarnings[6];
   static msTimer timerWarning(3000);
+  static states oldState;
 
   int delayTimer = state == stable ? 5000 : state == warning ? 3000 : state == critical ? 2000 : 0;
   int delayFlash = state == stable ? 1000 : state == warning ? 750 : state == critical ? 500 : 0;
+
+  if (oldState != state)
+  {
+    oldState = state;
+    timerWarning.ForceTrigger();
+  }
 
   if (timerWarning.elapsed())
   {
     timerWarning.setDelay(delayTimer);
 
-    int numWarnings = state == stable ? 1 : state == warning ? 2 : state == critical ? 3 : 0;
-    numWarnings = random(0, numWarnings + 1);
+    int minWarnings = state == stable ? 0 : state == warning ? 1 : state == critical ? 2 : 0;
+    int maxWarnings = state == stable ? 1 : state == warning ? 3 : state == critical ? 5 : 0;
+    int numWarnings = random(minWarnings, maxWarnings + 1);
 
     RandomArrayFill(warnings, numWarnings, sizeof(warnings));
 
@@ -180,6 +189,10 @@ void UpdateChamber()
   {
     stripChamber.setBrightness(255 - flasherBrightness.getPwmValue());
   }
+  else
+  {
+    stripChamber.setBrightness(255);
+  }
 
   static msTimer timerAsync(1000);
   static int blackoutPixel;
@@ -193,6 +206,17 @@ void UpdateChamber()
   }
 
   stripChamber.show();
+}
+
+void UpdateCloudBank9Background()
+{
+  static flasher flasherBackground(Pattern::Sin, 3000, 200);
+  uint32_t color = state == stable ? Color(0, 255 - flasherBackground.getPwmValue(), 0) : state == warning ? Color(127 - flasherBackground.getPwmValue() / 2, 127 - flasherBackground.getPwmValue() / 2.2, 0) : state == critical ? Color(255 - flasherBackground.getPwmValue(), 0, 0) : 0;
+  //uint32_t color = Color(0, 255 - flasherBackground.getPwmValue(), 0);
+
+  stripBackground.setBrightness(65);
+  stripBackground.fill(color, 0, stripBackground.numPixels());
+  stripBackground.show();
 }
 
 void UpdatePWMs()
@@ -250,7 +274,6 @@ void UpdatePWMs()
 
 void UpdateCloudBank9()
 {
-
   static msTimer timerNode(3000);
   static msTimer timerGenesis(1000);
   static bool nodeStates[15];
@@ -293,9 +316,9 @@ void UpdateCloudBank9()
     }
     if (seedState == poly)
     {
-      int selection1[4] = {0, 1, 3, 12}; 
+      int selection1[4] = {0, 1, 3, 12};
       nodeStates[selection1[random(0, 4)]] = true;
-      int selection2[4] = {9, 10, 8, 2}; 
+      int selection2[4] = {9, 10, 8, 2};
       nodeStates[selection2[random(0, 4)]] = true;
     }
     else if (seedState == mono)
@@ -403,6 +426,7 @@ void setup()
   stripStates.begin();
   stripWarning1.begin();
   stripWarning2.begin();
+  stripBackground.begin();
 
   buttonPoly.begin();
   buttonMono.begin();
@@ -410,8 +434,6 @@ void setup()
 
 void loop()
 {
-
-  digitalWrite(PIN_LED_BACKGROUND, false);
 
   //TEMP
   static msTimer timerState(5000);
@@ -423,7 +445,7 @@ void loop()
     state = (states)stateIndex;
   }
 
-  state = stable;
+  //state = stable;
 
   UpdateGlyphIndicator();
 
@@ -436,6 +458,8 @@ void loop()
   UpdatePWMs();
 
   UpdateCloudBank9();
+
+  UpdateCloudBank9Background();
 
   CheckFxOffset();
 
