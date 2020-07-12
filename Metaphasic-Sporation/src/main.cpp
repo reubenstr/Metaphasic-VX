@@ -36,6 +36,7 @@ Button buttonPoly(PIN_BUTTON_POLY);
 Button buttonMono(PIN_BUTTON_MONO);
 
 bool genesisFlag;
+int fxOffset;
 
 enum SeedState
 {
@@ -43,7 +44,22 @@ enum SeedState
   mono
 } seedState;
 
-//int nodeMap[10][4] = {{}}
+// Map of the connections between the nodes where the node index is the pin on the pwm module.
+const signed int nodeMap[15][4] = {{1, -1, -1, -1},
+                                   {0, 12, -1, -1},
+                                   {8, -1, -1, -1},
+                                   {12, -1, -1, -1},
+                                   {11, 8, -1, -1},
+                                   {11, 6, -1, -1},
+                                   {5, -1, -1, -1},
+                                   {13, 12, 11, -1},
+                                   {2, 10, 4, -1},   // 8
+                                   {10, -1, -1, -1}, // 9
+                                   {8, 9, -1, -1},   // 10
+                                   {14, 7, 5, 4},    // 11
+                                   {3, 1, 7, -1},
+                                   {7, -1, -1, -1},
+                                   {11, -1, -1, -1}};
 
 void UpdateGlyphIndicator()
 {
@@ -134,7 +150,6 @@ void UpdateWarningIndicators()
 void UpdateChamber()
 {
   static msTimer timer(20);
-  static flasher flasherWarnings[7];
   static byte wheelPos;
 
   if (timer.elapsed())
@@ -142,19 +157,21 @@ void UpdateChamber()
     wheelPos++;
     if (seedState == poly)
     {
-      for (int i = 0; i < stripChamber.numPixels(); i++)
+      for (signed int i = 0; i < stripChamber.numPixels(); i++)
       {
         stripChamber.setPixelColor(i, Wheel(((i * 256 / stripChamber.numPixels()) + wheelPos) & 255));
       }
     }
     else if (seedState == mono)
     {
-      for (int i = 0; i < stripChamber.numPixels(); i++)
+      for (signed int i = 0; i < stripChamber.numPixels(); i++)
       {
         stripChamber.setPixelColor(i, Wheel(wheelPos));
       }
     }
   }
+
+  digitalRead(PIN_TOGGLE_ASYNC);
 
   // PIN_TOGGLE_ASYNC
   // PIN_TOGGLE_PULSE
@@ -171,12 +188,13 @@ void UpdatePWMs()
   static msTimer timerIntensity(250);
   static int targetIntensity;
   static int currentIntensity;
+  int minIntensity = state == stable ? 0 : state == warning ? 3 : state == critical ? 6 : 0;
 
   if (timerIntensity.elapsed())
   {
     if (currentIntensity == targetIntensity)
     {
-      targetIntensity = random(0, 10);
+      targetIntensity = random(minIntensity, 10);
     }
     else
     {
@@ -199,9 +217,8 @@ void UpdatePWMs()
   pwms1[15] = 9 >= 9 - currentIntensity ? 4095 : 0;
 
   // Update buttons and indicators.
-
-  static flasher flasherGenensis(Pattern::Sin, 1000, 4095);
-  //flasherGenensis.repeat(false);
+  static flasher flasherGenensis(Pattern::Sin, 1000, maxPwmBlueLed);
+  flasherGenensis.repeat(false);
   if (genesisFlag)
   {
     genesisFlag = false;
@@ -209,7 +226,7 @@ void UpdatePWMs()
   }
 
   pwms1[5] = flasherGenensis.getPwmValue();
-  pwms1[4] = currentIntensity > 7 ? maxPwmGenericLed : 0;  
+  pwms1[4] = maxPwmGenericLed; //currentIntensity > 7 ? maxPwmGenericLed : 0;
   pwms1[3] = seedState == mono ? maxPwmGenericLed : 0;
   pwms1[2] = seedState == poly ? maxPwmGenericLed : 0;
 
@@ -219,57 +236,55 @@ void UpdatePWMs()
 void UpdateStars()
 {
 
+  static msTimer timerNode(3000);
+  static msTimer timerGenesis(1000);
+  static bool nodeStates[15];
+  uint16_t pwms2[16];
+  bool nodeStatesUpdates[15];
+  int delayGenesis = state == stable ? 20000 : state == warning ? 15000 : state == critical ? 10000 : 10000;
+  int delaySpread = state == stable ? 3000 : state == warning ? 2000 : state == critical ? 1000 : 10000;
+  timerNode.setDelay(delaySpread);
+
   buttonPoly.read();
   buttonMono.read();
-
-  bool sporationFlag = false;
 
   if (buttonPoly.wasPressed())
   {
     seedState = poly;
-    sporationFlag = true;
+    genesisFlag = true;
+    activityFlag = true;
   }
 
   if (buttonMono.wasPressed())
   {
     seedState = mono;
-    sporationFlag = true;
+    genesisFlag = true;
+    activityFlag = true;
   }
 
-  if (sporationFlag)
+  // Start genesis on a timer.
+  if (timerGenesis.elapsed())
   {
+    timerGenesis.setDelay(delayGenesis);
+    genesisFlag = true;
   }
 
-  static signed int nodeMap[15][4] = {{1, -1, -1, -1},
-                                      {0, 12, -1, -1},
-                                      {8, -1, -1, -1},
-                                      {12, -1, -1, -1},
-                                      {11, 8, -1, -1},
-                                      {11, 6, -1, -1},
-                                      {5, -1, -1, -1},
-                                      {13, 12, 11, -1},
-                                      {2, 10, 4, -1},   // 8
-                                      {10, -1, -1, -1}, // 9
-                                      {8, 9, -1, -1},   // 10
-                                      {14, 7, 5, 4},    // 11
-                                      {3, 1, 7, -1},
-                                      {7, -1, -1, -1},
-                                      {11, -1, -1, -1}};
-
-  static msTimer timerNode(3000);
-  static bool nodeStates[15];
-  static int start = 9;
-  uint16_t pwms2[16];
-  bool nodeStatesUpdates[15];
-  nodeStates[start] = true;
-
-  genesisFlag = true;
+  // Reset nodes and seed genesis.
+  if (genesisFlag)
+  {
+    for (int i = 0; i < 15; i++)
+    {
+      nodeStates[i] = false;
+    }
+    nodeStates[random(0, 16)] = true;
+  }
 
   for (int i = 0; i < 15; i++)
   {
     nodeStatesUpdates[i] = false;
   }
 
+  // Activate adjacent nodes of active nodes.
   if (timerNode.elapsed())
   {
     for (int i = 0; i < 15; i++)
@@ -280,7 +295,6 @@ void UpdateStars()
         {
           if (nodeMap[i][j] != -1)
           {
-            Serial.write(nodeMap[i][j]);
             nodeStatesUpdates[nodeMap[i][j]] = true;
           }
         }
@@ -296,20 +310,61 @@ void UpdateStars()
     }
   }
 
-  static flasher flasherNodes[15]; // maxPwmBlueLed
+  static flasher flasherNodes[15];
+  Pattern pattern = fxOffset == 0 ? Pattern::Sin : fxOffset == 1 ? Pattern::RampUp : fxOffset == 2 ? Pattern::OnOff : fxOffset == 3 ? Pattern::RandomFlash : Pattern::Sin;
+
   for (int i = 0; i < 15; i++)
   {
+    flasherNodes[i].setPattern(pattern);
     pwms2[i] = nodeStates[i] ? flasherNodes[i].getPwmValue() : 0;
   }
 
   pwmController2.setChannelsPWM(0, 16, pwms2);
 }
 
+void CheckFxOffset()
+{
+  fxOffset = digitalRead(PIN_OFFSET_0) + digitalRead(PIN_OFFSET_1) + digitalRead(PIN_OFFSET_2) + digitalRead(PIN_OFFSET_3);
+
+  static int oldFxOffset;
+  if (oldFxOffset != fxOffset)
+  {
+    oldFxOffset = fxOffset;
+    activityFlag = true;
+  }
+}
+
+void CheckToggles()
+{
+  int toggleValue = digitalRead(PIN_TOGGLE_ASYNC) + digitalRead(PIN_TOGGLE_PULSE) + digitalRead(PIN_TOGGLE_DECAY);
+
+  static int oldToggleValue;
+  if (oldToggleValue != toggleValue)
+  {
+    oldToggleValue = toggleValue;
+    activityFlag = true;
+  }
+}
+
 void setup()
 {
   Serial.begin(BAUD_RATE);
 
-  //pinMode(PIN_LED_BACKGROUND, LOW);
+  pinMode(PIN_OFFSET_0, INPUT);
+  pinMode(PIN_OFFSET_1, INPUT);
+  pinMode(PIN_OFFSET_2, INPUT);
+  pinMode(PIN_OFFSET_3, INPUT);
+  digitalWrite(PIN_OFFSET_0, HIGH);
+  digitalWrite(PIN_OFFSET_1, HIGH);
+  digitalWrite(PIN_OFFSET_2, HIGH);
+  digitalWrite(PIN_OFFSET_3, HIGH);
+
+  pinMode(PIN_TOGGLE_ASYNC, INPUT);
+  pinMode(PIN_TOGGLE_PULSE, INPUT);
+  pinMode(PIN_TOGGLE_DECAY, INPUT);
+  digitalWrite(PIN_TOGGLE_ASYNC, HIGH);
+  digitalWrite(PIN_TOGGLE_PULSE, HIGH);
+  digitalWrite(PIN_TOGGLE_DECAY, HIGH);
 
   Wire.begin();
   pwmController1.resetDevices();
@@ -356,4 +411,8 @@ void loop()
   UpdatePWMs();
 
   UpdateStars();
+
+  CheckFxOffset();
+
+  CheckToggles();
 }
