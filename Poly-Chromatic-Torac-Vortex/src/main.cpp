@@ -21,6 +21,7 @@
 #define PIN_BUTTOM_CYCLE 12
 #define PIN_POT_NANOGAIN A6
 #define PIN_POT_CORRECTION A7
+#define PIN_MOTOR 2
 
 #define LCD_COLUMNS 20
 #define LCD_ROWS 4
@@ -509,6 +510,9 @@ void setup()
 {
   Serial.begin(BAUD_RATE);
 
+  pinMode(PIN_MOTOR, OUTPUT);
+  digitalWrite(PIN_MOTOR, LOW);
+
   buttonCycle.begin();
   buttonInjection.begin();
   buttonAgitation.begin();
@@ -540,6 +544,9 @@ void loop()
   state = stable;
   // TEMP
   mode = active;
+
+
+  analogWrite(PIN_MOTOR, map(analogRead(PIN_POT_CORRECTION), 0, 1023, 0, 255));
 
   CheckButtons();
 

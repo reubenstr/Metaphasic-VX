@@ -435,7 +435,10 @@ void setup()
 void loop()
 {
 
+CheckControlData();
+
   //TEMP
+  /*
   static msTimer timerState(5000);
   static int stateIndex;
   if (timerState.elapsed())
@@ -446,6 +449,7 @@ void loop()
   }
 
   //state = stable;
+  */
 
   UpdateGlyphIndicator();
 

@@ -9,17 +9,14 @@
 
 #define PIN_POT_CORRECTION A0
 #define PIN_STRIP_DCDC 7
-#define PIN_STRIP_DISTRIBUTION 12
-#define PIN_LED_LAMBDA_CORRECTION 10
+#define PIN_STRIP_DISTRIBUTION 5
+#define PIN_LED_LAMBDA_CORRECTION 2
 #define PIN_LED_LOCK A1
 #define PIN_LED_POWER_ON A2
-
+ 
 #define TFT_CS 6
 #define TFT_RST -1
 #define TFT_DC 8
-#define TFT_MOSI 9
-#define TFT_SCLK 7
-
 // Hardware SPI : MOSI = pin 11, SCLK = pin 13
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
@@ -43,31 +40,37 @@ void UpdateLEDs()
 
   flasher flasherCorrection(Pattern::Sin, 1000, 255);
 
-  int delayCorrection = state == stable ? 100 : state == warning ? 40 : state == critical ? 5 : 0;
+  int delayCorrection = state == stable ? 1000 : state == warning ? 750 : state == critical ? 500 : 0;
   flasherCorrection.setDelay(delayCorrection);
   analogWrite(PIN_LED_LAMBDA_CORRECTION, flasherCorrection.getPwmValue());
 }
 
 void UpdateLcdText()
 {
-  tft.setCursor(90, 6);
-  tft.setTextWrap(true);
-  tft.setTextSize(2);
+  static states oldState;
+  if (oldState != state)
+  {
+    oldState = state;
 
-  if (state == stable)
-  {
-    tft.setTextColor(ST77XX_GREEN, ST77XX_BLACK);
-    tft.print("STABLE  ");
-  }
-  else if (state == warning)
-  {
-    tft.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
-    tft.print("WARNING ");
-  }
-  else if (state == critical)
-  {
-    tft.setTextColor(ST77XX_RED, ST77XX_BLACK);
-    tft.print("CRITICAL");
+    tft.setCursor(90, 6);
+    tft.setTextWrap(true);
+    tft.setTextSize(2);
+
+    if (state == stable)
+    {
+      tft.setTextColor(ST77XX_GREEN, ST77XX_BLACK);
+      tft.print("STABLE  ");
+    }
+    else if (state == warning)
+    {
+      tft.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
+      tft.print("WARNING ");
+    }
+    else if (state == critical)
+    {
+      tft.setTextColor(ST77XX_RED, ST77XX_BLACK);
+      tft.print("CRITICAL");
+    }
   }
 }
 
@@ -173,11 +176,27 @@ void setup(void)
 void loop()
 {
   // State controller for the entire VX system.
-  msTimer timerState(3000);
+  static msTimer timerState(5000);
   if (timerState.elapsed())
   {
-    state = (states)random(0, 3);
+    //state = (states)random(0, 3);
+    static int s = 0;
+    if (++s > 2)
+    {
+      s = 0;
+    }
+
+    state = (states)s;
   }
+
+  static msTimer timerSendData(1000);
+  if (timerSendData.elapsed())
+  {
+    SendControlData(activityFlag);
+    activityFlag = false;
+  }
+
+  CheckControlData(false);
 
   int offset = (map(analogRead(PIN_POT_CORRECTION), 0, 1024, 0, 10));
 
@@ -185,14 +204,11 @@ void loop()
 
   UpdateLcdIntensity();
 
+   UpdateLcdText();
+
   UpdateLEDs();
 
   UpdateStrips(offset);
 
-  static states oldState;
-  if (oldState != state)
-  {
-    oldState = state;
-    UpdateLcdText();
-  }
+ 
 }
