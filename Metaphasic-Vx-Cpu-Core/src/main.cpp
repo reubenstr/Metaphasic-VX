@@ -224,6 +224,7 @@ void UpdatePWMs()
     }
   }
 
+  pwms1[12] = 0;
   pwms1[11] = aiState == skynet ? maxPwmGenericLed : 0;
   pwms1[10] = aiState == lcars ? maxPwmGenericLed : 0;
   pwms1[9] = aiState == kitt ? maxPwmGenericLed : 0;
@@ -331,7 +332,11 @@ void AbortSequence()
   sentienceDetected = false;
   UpdateSentienceIndicator();
 
-  pwmController1.setAllChannelsPWM(0);
+  uint16_t pwms1[16];
+  for (int i = 0; i < 16; i++)
+  {
+    pwms1[i] = 0;
+  }
 
   byte empty = 0;
   for (int i = 0; i < 8; i++)
@@ -339,13 +344,20 @@ void AbortSequence()
     lc.setRow(0, 7 - i, empty);
     lc.setRow(1, 7 - i, empty);
     lc.setRow(2, 7 - i, empty);
+    pwms1[12] = ~pwms1[12];
+    pwmController1.setChannelsPWM(0, 16, pwms1);
     delay(250);
   }
 
   for (int i = 0; i < 8; i++)
   {
-    int pwmValue = ((i % 2) == 0) ? 0 : 1500;
-    pwmController1.setAllChannelsPWM(pwmValue);
+    int pwmValue = ((i % 2) == 0) ? 0 : 1500; 
+    for (int i = 0; i < 16; i++)
+    {
+      pwms1[i] = pwmValue;
+    }
+    pwms1[12] = ((i % 2) == 1) ? 0 : 1500;
+    pwmController1.setChannelsPWM(0, 16, pwms1);
     delay(250);
   }
 }
@@ -466,8 +478,6 @@ void loop()
       // TODO: MODE TIMEOUT TIMER
     }
 
-    
- 
     SendControlData(activityFlag);
     activityFlag = false;
   }

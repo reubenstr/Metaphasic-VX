@@ -9,11 +9,11 @@
 
 #define PIN_POT_CORRECTION A0
 #define PIN_STRIP_DCDC 7
-#define PIN_STRIP_DISTRIBUTION 5
-#define PIN_LED_LAMBDA_CORRECTION 2
-#define PIN_LED_LOCK A1
-#define PIN_LED_POWER_ON A2
- 
+#define PIN_STRIP_DISTRIBUTION 3
+#define PIN_STRIP_LAMBDA_CORRECTION 10
+#define PIN_LED_LOCK 2
+#define PIN_LED_POWER_ON A1
+
 #define TFT_CS 6
 #define TFT_RST -1
 #define TFT_DC 8
@@ -22,6 +22,9 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
 Adafruit_NeoPixel stripDc = Adafruit_NeoPixel(10, PIN_STRIP_DCDC, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripDistribution = Adafruit_NeoPixel(3, PIN_STRIP_DISTRIBUTION, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripLambda = Adafruit_NeoPixel(1, PIN_STRIP_LAMBDA_CORRECTION, NEO_GRB + NEO_KHZ800);
+
+int gravimetricCorrection;
 
 void UpdateStrips(int offset)
 {
@@ -35,14 +38,32 @@ void UpdateStrips(int offset)
   stripDistribution.show();
 }
 
-void UpdateLEDs()
+void UpdateLambda()
 {
+static msTimer timer(1000);
+static msTimer timerFlash(200);
+static byte wheelPos;
+static bool toggle = false;
 
-  flasher flasherCorrection(Pattern::Sin, 1000, 255);
+  int delay = state == stable ? 1000 : state == warning ? 750 : state == critical ? 500 : 0;
 
-  int delayCorrection = state == stable ? 1000 : state == warning ? 750 : state == critical ? 500 : 0;
-  flasherCorrection.setDelay(delayCorrection);
-  analogWrite(PIN_LED_LAMBDA_CORRECTION, flasherCorrection.getPwmValue());
+
+if (timer.elapsed())
+{
+  timer.setDelay(delay);
+ wheelPos = random(0, 256);
+ timerFlash.resetDelay();
+ toggle = true;
+}
+
+if (timerFlash.elapsed())
+{
+    toggle = false;
+}
+ 
+  stripLambda.setPixelColor(0, toggle ? Wheel(wheelPos) : 0); 
+  stripLambda.show();
+
 }
 
 void UpdateLcdText()
@@ -130,13 +151,48 @@ void UpdateLcdSin(int offset)
   oldOffset = offset;
 }
 
+void UpdateLockLed(bool trigger = false)
+{
+  static flasher flasherFlash(Pattern::Sin, 1000, 255);
+  static msTimer timer(1000);
+  flasherFlash.repeat(false);
+
+  if (mode == automaticActivity)
+  {
+    if (state == warning || state == critical)
+    {
+      if (timer.elapsed())
+      {
+        flasherFlash.reset();
+      }
+    }
+  }
+
+  if (trigger)
+  {
+    flasherFlash.reset();
+  }
+
+  analogWrite(PIN_LED_LOCK, flasherFlash.getPwmValue());
+}
+
+void CheckPot()
+{
+  static int oldGravimetricCorrection;
+  gravimetricCorrection = (map(analogRead(PIN_POT_CORRECTION), 0, 1024, 0, 10));
+
+  if (oldGravimetricCorrection - 1 < gravimetricCorrection || oldGravimetricCorrection + 1 > gravimetricCorrection)
+  {
+    activityFlag = true;
+  }
+}
+
 void setup(void)
 {
 
   Serial.begin(BAUD_RATE);
 
   pinMode(PIN_POT_CORRECTION, INPUT);
-  pinMode(PIN_LED_LAMBDA_CORRECTION, OUTPUT);
   pinMode(PIN_LED_LOCK, OUTPUT);
   pinMode(PIN_LED_POWER_ON, OUTPUT);
 
@@ -144,6 +200,7 @@ void setup(void)
 
   stripDc.begin();
   stripDistribution.begin();
+  stripLambda.begin();
 
   tft.init(135, 240);
 
@@ -175,19 +232,27 @@ void setup(void)
 
 void loop()
 {
-  
 
-  int offset = (map(analogRead(PIN_POT_CORRECTION), 0, 1024, 0, 10));
+  CheckControlData();
 
-  UpdateLcdSin(offset);
+  if (performActivityFlag)
+  {
+    performActivityFlag = false;
+
+    UpdateLockLed(true);
+  }
+
+  CheckPot();
+
+  UpdateLockLed();
+
+  UpdateLcdSin(gravimetricCorrection);
 
   UpdateLcdIntensity();
 
-   UpdateLcdText();
+  UpdateLcdText();
 
-  UpdateLEDs();
+  UpdateLambda();
 
-  UpdateStrips(offset);
-
- 
+  UpdateStrips(gravimetricCorrection);
 }

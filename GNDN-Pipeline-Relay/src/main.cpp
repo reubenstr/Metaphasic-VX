@@ -52,7 +52,7 @@ bool DeMultiplex(int channel)
   return analogRead(PIN_DECORDER_SIG) < 100 ? false : true;
 }
 
-void UpdateSynapticGenerator(bool trigger)
+void UpdateSynapticGenerator(bool trigger = false)
 {
   static flasher flasherFlash(Pattern::Sin, 400, 255);
   flasherFlash.repeat(false);
@@ -280,8 +280,8 @@ void ProcessSubspaceSwitches()
     timerDebounce.resetDelay();
     debounceFlag = true;
 
-    ToggleRelay(random(0, 4));
-    UpdateSynapticGenerator(true);
+     ToggleRelay(random(0, 4));
+     // UpdateSynapticGenerator(true);
   }
 }
 
@@ -320,8 +320,7 @@ void UpdateRelayToggle()
     if (timerRelays.elapsed())
     {
       timerRelays.setDelay(delayRelays + random(0, delayRelays));
-
-      ToggleRelay(random(0, 3));
+      
       UpdateSynapticGenerator(true);
     }
   }
@@ -381,9 +380,7 @@ void loop()
 
   if (performActivityFlag)
   {
-    performActivityFlag = false;
-
-    ToggleRelay(random(0, 3));
+    performActivityFlag = false;  
     UpdateSynapticGenerator(true);
   }
 
@@ -397,7 +394,7 @@ void loop()
 
   UpdateStripIndicators();
 
-  UpdateSynapticGenerator(false);
+  UpdateSynapticGenerator();
 
   // UpdateRelayToggle(); // TEMP
 

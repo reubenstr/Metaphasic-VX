@@ -73,9 +73,17 @@ public:
     inline void repeat(bool repeat)
     {
         _repeat = repeat;
-    }   
+    }
 
-  
+    inline bool endOfCycle()
+    {
+        if (_endOfCycle)
+        {
+            _endOfCycle = false;
+            return true;
+        }
+        return false;
+    }
 
     inline int getPwmValue()
     {
@@ -146,6 +154,7 @@ public:
                 {
                     toggle = false;
                     _microsPerStep = ((float)random(_delay / 2, _delay * 1.5)) * 1000.0;
+                    _endOfCycle = true;
                 }
                 else
                 {

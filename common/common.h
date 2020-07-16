@@ -59,7 +59,6 @@ void CheckControlData(bool echoFlag = true)
 		if (++index > sizeof(data))
 		{
 		   index = 0;
-		   //Serial.write(1); //TEMP
 		}
 
 		if (c == 13)
@@ -71,15 +70,11 @@ void CheckControlData(bool echoFlag = true)
 
 	if (dataReadyFlag)
 	{
-
-//Serial.write(0);//TEMP
-
 		int checkSum = data[0] + data[1] + data[2] + data[3];
 		
 		if (checkSum != data [4])
 		{			
 			return;		
-			//Serial.write(2);//TEMP	
 		}
 
 		state = (states)data[0];
@@ -87,15 +82,12 @@ void CheckControlData(bool echoFlag = true)
 		activityFlag = (bool)data[2] | activityFlag;
 		performActivityFlag = (bool)data[3];
 
-		activityFlag = false;
-
-//Serial.write(4);//TEMP
-
 		if (echoFlag)
 		{
-			////Serial.write(6);//TEMP
-			SendControlData();
+			SendControlData(performActivityFlag);
 		}
+
+		activityFlag = false;
 	}
 }
 
