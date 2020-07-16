@@ -19,8 +19,8 @@ enum states
 
 enum modes
 {
-	passive = 0,
-	active = 1
+	automaticActivity = 0,
+	manualActivity = 1
 } mode;
 
 const int maxPwmGenericLed = 4095;
@@ -31,14 +31,14 @@ const int maxPwmYellowLed = 4095;
 
 // Shared method among the projects.
 // triggerActivity should only be raised by the master panel.
-void SendControlData(bool triggerActivity = false)
+void SendControlData(bool performActivity = false)
 {
-	byte checkSum = (byte)state + (byte)mode + (byte)activityFlag + (byte)performActivityFlag;
+	byte checkSum = (byte)state + (byte)mode + (byte)activityFlag + (byte)performActivity;
 
 	Serial.write((byte)state);
 	Serial.write((byte)mode);
 	Serial.write((byte)activityFlag);
-	Serial.write((byte)triggerActivity);
+	Serial.write((byte)performActivity);
 	Serial.write((checkSum));
 	Serial.write(13);
 }
@@ -59,6 +59,7 @@ void CheckControlData(bool echoFlag = true)
 		if (++index > sizeof(data))
 		{
 		   index = 0;
+		   //Serial.write(1); //TEMP
 		}
 
 		if (c == 13)
@@ -70,10 +71,15 @@ void CheckControlData(bool echoFlag = true)
 
 	if (dataReadyFlag)
 	{
+
+//Serial.write(0);//TEMP
+
 		int checkSum = data[0] + data[1] + data[2] + data[3];
+		
 		if (checkSum != data [4])
 		{			
-			return;			
+			return;		
+			//Serial.write(2);//TEMP	
 		}
 
 		state = (states)data[0];
@@ -81,8 +87,13 @@ void CheckControlData(bool echoFlag = true)
 		activityFlag = (bool)data[2] | activityFlag;
 		performActivityFlag = (bool)data[3];
 
+		activityFlag = false;
+
+//Serial.write(4);//TEMP
+
 		if (echoFlag)
 		{
+			////Serial.write(6);//TEMP
 			SendControlData();
 		}
 	}

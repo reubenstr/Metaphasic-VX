@@ -17,7 +17,7 @@
 #define PIN_BUTTON_LCARS A2
 #define PIN_BUTTON_KITT A0
 #define PIN_BUTTON_HAL A1
-#define PIN_TOGGLE_SUPPRESSION A6
+#define PIN_TOGGLE_SUPPRESSION 12
 
 // data, clk, load, number of matrix
 LedControl lc = LedControl(PIN_MATRIX_DATAIN, PIN_MATRIX_CLK, PIN_MATRIX_LOAD, 3);
@@ -229,6 +229,9 @@ void UpdatePWMs()
   pwms1[9] = aiState == kitt ? maxPwmGenericLed : 0;
   pwms1[8] = aiState == hal ? maxPwmGenericLed : 0;
 
+  // TEMP
+  pwms1[9] = mode == manualActivity ? maxPwmGenericLed : 0;
+
   // FlipFlop
   pwms1[4] = flipFlop ? maxPwmBlueLed : 0;
 
@@ -242,8 +245,6 @@ void UpdatePWMs()
 
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
-
-
 
 void CheckButtons()
 {
@@ -264,29 +265,37 @@ void CheckButtons()
   if (buttonSkynet.wasPressed())
   {
     if (!sentienceDetected)
+    {
       aiState = skynet;
-    activityFlag = true;
+      activityFlag = true;
+    }
   }
 
   if (buttonLcars.wasPressed())
   {
     if (!sentienceDetected)
+    {
       aiState = lcars;
-    activityFlag = true;
+      activityFlag = true;
+    }
   }
 
   if (buttonKitt.wasPressed())
   {
     if (!sentienceDetected)
+    {
       aiState = kitt;
-    activityFlag = true;
+      activityFlag = true;
+    }
   }
 
   if (buttonHal.wasPressed())
   {
     if (!sentienceDetected)
+    {
       aiState = hal;
-    activityFlag = true;
+      activityFlag = true;
+    }
   }
 }
 
@@ -305,7 +314,7 @@ void ProcessErrors()
 
 void UpdateSentienceIndicator()
 {
- if (sentienceDetected)
+  if (sentienceDetected)
   {
     static flasher flasherStrip(Pattern::OnOff, 1000, 255);
     stripSentienceDetected.fill(stripSentienceDetected.Color(flasherStrip.getPwmValue(), 0, 0), 0, stripSentienceDetected.numPixels());
@@ -358,10 +367,10 @@ void UpdateSentience()
 
   if (abortFlag)
   {
-    abortFlag = false;    
+    abortFlag = false;
     AbortSequence();
     timerSentience.resetDelay();
-  } 
+  }
 }
 
 void CheckToggle()
@@ -378,6 +387,9 @@ void setup()
 {
   delay(500);
   Serial.begin(BAUD_RATE);
+
+  pinMode(PIN_TOGGLE_SUPPRESSION, INPUT);
+  digitalWrite(PIN_TOGGLE_SUPPRESSION, HIGH);
 
   buttonAbort.begin();
   buttonSkynet.begin();
@@ -412,9 +424,56 @@ void setup()
 
 void loop()
 {
-  //state = critical;         // TEMP
-  //sentienceDetected = true; // TEMP
-  //aiState = lcars;          // TEMP
+
+  // State controller for the entire VX system.
+  /*
+  static msTimer timerState(5000);
+  if (timerState.elapsed())
+  {
+    //state = (states)random(0, 3);
+    static int s = 0;
+    if (++s > 2)
+    {
+      s = 0;
+    }
+
+    state = (states)s;
+  }
+  */
+
+  // TEMP
+  if (aiState == skynet)
+  {
+    state = critical;
+  }
+  if (aiState == lcars)
+  {
+    state = stable;
+  }
+  if (aiState == hal)
+  {
+    state = warning;
+  }
+  // TEMP
+
+  static msTimer timerSendData(1000);
+  if (timerSendData.elapsed())
+  {
+    if (activityFlag)
+    {
+      mode = manualActivity;
+
+      // TODO: MODE TIMEOUT TIMER
+    }
+
+    
+ 
+    SendControlData(activityFlag);
+    activityFlag = false;
+  }
+
+  // TEMP
+  //CheckControlData(false);
 
   static msTimer flipFlopTimer(2500);
   if (flipFlopTimer.elapsed())
@@ -426,7 +485,7 @@ void loop()
 
   UpdateSentienceIndicator();
 
-  CheckToggle(); 
+  CheckToggle();
 
   UpdatePWMs();
 

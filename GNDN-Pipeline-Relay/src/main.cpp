@@ -84,6 +84,9 @@ void UpdateLedDisplays()
   if (previousState != state)
   {
     previousState = state;
+    value1 = random(minRange, maxRange);
+    value2 = random(minRange, maxRange);
+    value3 = random(minRange, maxRange);
     timer1.resetDelay();
     timer2.resetDelay();
     timer3.resetDelay();
@@ -278,7 +281,7 @@ void ProcessSubspaceSwitches()
     debounceFlag = true;
 
     ToggleRelay(random(0, 4));
-    UpdateSynapticGenerator(true);    
+    UpdateSynapticGenerator(true);
   }
 }
 
@@ -303,31 +306,32 @@ void UpdateStripIndicators()
   }
 
   stripManafold.show();
-  stripMuliplex.show(); 
+  stripMuliplex.show();
 }
 
 void UpdateRelayToggle()
 {
   // Toggle relays when mode is active.
   static msTimer timerRelays(2000);
-  int delayRelays = state == stable ? 1500 : state == warning ? 700 : state == critical ? 350 : 0;  
-  if (timerRelays.elapsed())
+  int delayRelays = state == stable ? 1500 : state == warning ? 700 : state == critical ? 350 : 0;
+
+  if (mode == automaticActivity)
   {
-    timerRelays.setDelay(delayRelays + random(0, delayRelays));
-    if (mode == active)
+    if (timerRelays.elapsed())
     {
+      timerRelays.setDelay(delayRelays + random(0, delayRelays));
+
       ToggleRelay(random(0, 3));
       UpdateSynapticGenerator(true);
     }
   }
 }
 
-
 void CheckToggleActivity()
 {
   static int oldToggleSum;
   int toggleSum = 0;
-  for(int i = 0; i < 16; i++)
+  for (int i = 0; i < 16; i++)
   {
     toggleSum += DeMultiplex(i);
   }
@@ -335,7 +339,7 @@ void CheckToggleActivity()
   {
     oldToggleSum = toggleSum;
     activityFlag = true;
-  }  
+  }
 }
 
 void setup()
@@ -372,8 +376,16 @@ void setup()
 
 void loop()
 {
-  mode = passive;   // TEMP
-  state = stable;   // TEMP
+
+  CheckControlData();
+
+  if (performActivityFlag)
+  {
+    performActivityFlag = false;
+
+    ToggleRelay(random(0, 3));
+    UpdateSynapticGenerator(true);
+  }
 
   UpdatePWMs();
 
@@ -387,8 +399,7 @@ void loop()
 
   UpdateSynapticGenerator(false);
 
-  UpdateRelayToggle();  
+  // UpdateRelayToggle(); // TEMP
 
   CheckToggleActivity();
-  
 }

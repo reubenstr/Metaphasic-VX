@@ -61,6 +61,7 @@ struct TuningValues
 } tuningValues;
 
 const int vertexBaseSpeed = 160;
+bool stateLUnit = false;
 
 void UpdatePWMs()
 {
@@ -71,13 +72,17 @@ void UpdatePWMs()
   pwms1[4] = controlStates.supression ? maxPwmGenericLed : 0;
   pwms1[7] = controlStates.plumbus ? maxPwmGenericLed : 0;
 
+  // Darkmatter Indicator.
   static flasher flasherIndicator(Pattern::Sin, 750, maxPwmRedLed);
   pwms1[9] = state == warning ? flasherIndicator.getPwmValue() : 0;
 
+  // Doomsday Overheat.
   pwms1[10] = tuningValues.nanogain > 13 || tuningValues.correction > 25 ? maxPwmRedLed : 0;
 
+  // L-UNIT Straightended.
   static flasher flasherStraightened(Pattern::Solid, 500, maxPwmRedLed);
-  pwms1[11] = state == warning || state == critical ? flasherStraightened.getPwmValue() : 0;
+  // pwms1[11] = stateLUnit ? flasherStraightened.getPwmValue() : 0;
+  pwms1[11] = stateLUnit ? maxPwmRedLed : 0;
 
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
@@ -103,7 +108,7 @@ void UpdateLcdDisplay()
   if (timerNewMessage.elapsed())
   {
     timerNewMessage.setDelay(2000);
-    if (mode == passive)
+    if (mode == automaticActivity)
     {
       message = random(0, numMessages);
     }
@@ -540,11 +545,14 @@ void setup()
 void loop()
 {
 
-  // TEMP
-  state = stable;
-  // TEMP
-  mode = active;
+  CheckControlData();
 
+  if (performActivityFlag)
+  {
+    performActivityFlag = false;
+
+    stateLUnit = !stateLUnit;
+  }
 
   analogWrite(PIN_MOTOR, map(analogRead(PIN_POT_CORRECTION), 0, 1023, 0, 255));
 
@@ -569,7 +577,7 @@ void loop()
     UpdateVertexAll();
   }
 
-  if (mode == passive)
+  if (mode == automaticActivity)
   {
     UpdateControlStates();
   }
@@ -580,7 +588,7 @@ void loop()
   {
     stripCircle.setBrightness(127);
     wheelPos++;
-    for (int i = 0; i < stripCircle.numPixels(); i++)
+    for (int i = 0; i < (int)stripCircle.numPixels(); i++)
     {
       stripCircle.setPixelColor(i, Wheel(((i * 256 / stripCircle.numPixels()) + wheelPos) & 255));
     }

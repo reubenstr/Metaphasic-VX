@@ -175,28 +175,7 @@ void setup(void)
 
 void loop()
 {
-  // State controller for the entire VX system.
-  static msTimer timerState(5000);
-  if (timerState.elapsed())
-  {
-    //state = (states)random(0, 3);
-    static int s = 0;
-    if (++s > 2)
-    {
-      s = 0;
-    }
-
-    state = (states)s;
-  }
-
-  static msTimer timerSendData(1000);
-  if (timerSendData.elapsed())
-  {
-    SendControlData(activityFlag);
-    activityFlag = false;
-  }
-
-  CheckControlData(false);
+  
 
   int offset = (map(analogRead(PIN_POT_CORRECTION), 0, 1024, 0, 10));
 
