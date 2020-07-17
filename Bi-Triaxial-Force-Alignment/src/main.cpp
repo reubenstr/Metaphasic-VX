@@ -90,66 +90,43 @@ int RandomServoPosition()
 
 void SetTriServoValues()
 {
-  static msTimer timerRed(100);
-  static msTimer timerGreen(100);
-  static msTimer timerBlue(100);
 
-  static msTimer redDetachTimer(50);
-  static msTimer greenDetachTimer(50);
-  static msTimer blueDetachTimer(50);
-
+  static msTimer timerDetach(250);
   int redPos, greenPos, bluePos;
-  int delayMs = state == stable ? 4000 : state == warning ? 3000 : state == critical ? 2000 : 0;
 
-  int bias = map(analogRead(PIN_ANALOG_POT_HEISENBERG_BIAS), 0, 1023, 0, 15);
-
-  if (timerRed.elapsed())
+  if (performActivityFlag && digitalRead(PIN_TOGGLE_1))
   {
-    timerRed.setDelay(delayMs + random(0, delayMs));
+    performActivityFlag = false;
+    timerDetach.resetDelay();
+
+    int bias = map(analogRead(PIN_ANALOG_POT_HEISENBERG_BIAS), 0, 1023, 0, 15);
+
     redPos = RandomServoPosition();
-    if (mode == active)
-    {
-      servoRed.attach(PIN_SERVO_RED);
-      servoRed.write(redPos + bias);
-    }
-    redDetachTimer.resetDelay();
-  }
-
-  if (timerGreen.elapsed())
-  {
-    timerGreen.setDelay(delayMs + random(0, delayMs));
     greenPos = RandomServoPosition();
-    if (mode == active)
-    {
-      servoGreen.attach(PIN_SERVO_GREEN);
-      servoGreen.write(greenPos + bias);
-    }
-    greenDetachTimer.resetDelay();
-  }
-
-  if (timerBlue.elapsed())
-  {
-    timerBlue.setDelay(delayMs + random(0, delayMs));
     bluePos = RandomServoPosition();
-    if (mode == active)
-    {
-      servoBlue.attach(PIN_SERVO_BLUE);
-      servoBlue.write(bluePos + bias);
-    }
-    blueDetachTimer.resetDelay();
+
+    servoRed.attach(PIN_SERVO_RED);
+    servoGreen.attach(PIN_SERVO_GREEN);
+    servoBlue.attach(PIN_SERVO_BLUE);
+
+    servoRed.write(redPos + bias);
+    servoGreen.write(redPos + bias);
+    servoBlue.write(redPos + bias);
+
+    int delta = abs(redPos - 90) + abs(greenPos - 90) + abs(bluePos - 90);
+    int ledPos = map(delta, 0, 120, 0, 255);
+    stripIndicatorLeft.setPixelColor(0, stripIndicatorLeft.Color(ledPos, 255 - ledPos, 0));
+    stripIndicatorLeft.show();
   }
-
-  if (redDetachTimer.elapsed())
-    servoRed.detach();
-  if (greenDetachTimer.elapsed())
-    servoGreen.detach();
-  if (blueDetachTimer.elapsed())
-    servoBlue.detach();
-
-  int delta = abs(redPos - 90) + abs(greenPos - 90) + abs(bluePos - 90);
-  int ledPos = map(delta, 0, 120, 0, 255);
-  stripIndicatorLeft.setPixelColor(0, stripIndicatorLeft.Color(ledPos, 255 - ledPos, 0));
-  stripIndicatorLeft.show();
+  else
+  {
+    if (timerDetach.elapsed())
+    {
+      servoRed.detach();
+      servoGreen.detach();
+      servoBlue.detach();
+    }
+  }
 }
 
 void SetTriValues()
@@ -259,6 +236,54 @@ void UpdateRightTriangle(bool fill)
   stripIndicatorRight.show();
 }
 
+void CheckActivity()
+{
+  static int oldPot1, pot1;
+  static int oldPot2, pot2;
+  static int oldPot3, pot3;
+  const int rangeTest = 2;
+
+  pot1 = (map(analogRead(PIN_ANALOG_POT_HEISENBERG_BIAS), 0, 1024, 0, 10));
+  pot2 = (map(analogRead(PIN_ANALOG_POT_ATOMIC_TRI_BOND), 0, 1024, 0, 10));
+  pot3 = (map(analogRead(PIN_ANALOG_POT_MIDI_CLORIAN_COMPENSATION), 0, 1024, 0, 10));
+
+  if (!InRange(pot1, oldPot1 - rangeTest, oldPot1 + rangeTest))
+  {
+    oldPot1 = pot1;
+    activityFlag = true;
+  }
+
+  if (!InRange(pot2, oldPot2 - rangeTest, oldPot2 + rangeTest))
+  {
+    oldPot2 = pot2;
+    activityFlag = true;
+  }
+
+  if (!InRange(pot3, oldPot3 - rangeTest, oldPot3 + rangeTest))
+  {
+    oldPot3 = pot3;
+    activityFlag = true;
+  }
+
+  static bool oldToggle1, toggle1;
+  static bool oldToggle2, toggle2;
+
+  toggle1 = digitalRead(PIN_TOGGLE_1);
+  toggle2 = digitalRead(PIN_TOGGLE_2);
+
+  if (oldToggle1 != toggle1)
+  {
+    oldToggle1 = toggle1;
+    activityFlag = true;
+  }
+
+  if (oldToggle2 != toggle2)
+  {
+    oldToggle2 = toggle2;
+    activityFlag = true;
+  }
+}
+
 void setup()
 {
   delay(500);
@@ -284,8 +309,7 @@ void setup()
 void loop()
 {
 
-  state = critical;
-  mode = passive;
+  CheckControlData();
 
   int brightnessOffset = map(analogRead(PIN_ANALOG_POT_ATOMIC_TRI_BOND), 0, 1023, 0, 200);
   stripIndicatorLeft.setBrightness(100 - brightnessOffset / 2.5);
@@ -295,4 +319,6 @@ void loop()
 
   bool fill = digitalRead(PIN_TOGGLE_2);
   UpdateRightTriangle(fill);
+
+  CheckActivity();
 }

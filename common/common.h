@@ -1,14 +1,18 @@
 // Shared variables and methods for the collection of VX projects.
-// Note: some methods are crude and intended for non-critical functionality.
+// Some methods are crude and intended only for the VX project's non-critical functionality.
 
 #ifndef COMMON_H
 #define COMMON_H
 
 #define BAUD_RATE 57600
 
+// When user interacts with a panel. (presses a button, toggles a switch, adjusts a pot).
 bool activityFlag = false;
+
+// Indicates to a panel to perform an activity as feedback to a user interacting with another panel.
 bool performActivityFlag = false;
 
+// Main system states. (determines flashing patterns and other behaviors).
 enum states
 {
 	stable = 0,
@@ -17,6 +21,7 @@ enum states
 	unknown = 3
 } state;
 
+// Indicates if a user is interacting with the system.
 enum modes
 {
 	automaticActivity = 0,
@@ -31,13 +36,13 @@ const int maxPwmYellowLed = 4095;
 
 // Shared method among the projects.
 // triggerActivity should only be raised by the master panel.
-void SendControlData(bool performActivity = false)
+void SendControlDataFromMaster(bool performActivity)
 {
-	byte checkSum = (byte)state + (byte)mode + (byte)activityFlag + (byte)performActivity;
+	byte checkSum = (byte)state + (byte)mode + 0 + (byte)performActivity;
 
 	Serial.write((byte)state);
 	Serial.write((byte)mode);
-	Serial.write((byte)activityFlag);
+	Serial.write((byte)false); // activityFlag
 	Serial.write((byte)performActivity);
 	Serial.write((checkSum));
 	Serial.write(13);
@@ -47,23 +52,23 @@ void SendControlData(bool performActivity = false)
 // Master panel shall not echo the data.
 void CheckControlData(bool echoFlag = true)
 {
-	static byte data[24];
+	static byte data[10];
 	static int index;
 	bool dataReadyFlag = false;
 
 	while (Serial.available())
 	{
-		byte c = Serial.read();		
+		byte c = Serial.read();
 		data[index] = c;
 
 		if (++index > sizeof(data))
 		{
-		   index = 0;
+			index = 0;
 		}
 
 		if (c == 13)
 		{
-			index = 0;	
+			index = 0;
 			dataReadyFlag = true;
 		}
 	}
@@ -71,10 +76,10 @@ void CheckControlData(bool echoFlag = true)
 	if (dataReadyFlag)
 	{
 		int checkSum = data[0] + data[1] + data[2] + data[3];
-		
-		if (checkSum != data [4])
-		{			
-			return;		
+
+		if (checkSum != data[4])
+		{
+			return;
 		}
 
 		state = (states)data[0];
@@ -83,13 +88,27 @@ void CheckControlData(bool echoFlag = true)
 		performActivityFlag = (bool)data[3];
 
 		if (echoFlag)
-		{
-			SendControlData(performActivityFlag);
-		}
+		{	
+			byte checkSum = data[0] + data[1] + (data[2] | activityFlag) + data[3];
+			
+			Serial.write(data[0]);
+			Serial.write(data[1]);
+			Serial.write(data[2] | activityFlag);
+			Serial.write(data[3]);
+			Serial.write((checkSum));
+			Serial.write(13);
 
-		activityFlag = false;
+			activityFlag = false;
+		}
 	}
 }
+
+// Returns true if x is in range [low..high], else false.
+bool InRange(int x, int low, int high) 
+{ 
+    return ((x-high)*(x-low) <= 0); 
+} 
+
 
 // Incremment a value and rollover the results if the results are greater than the max value specified.
 int RollOverValue(int value, int offset, int min, int max)

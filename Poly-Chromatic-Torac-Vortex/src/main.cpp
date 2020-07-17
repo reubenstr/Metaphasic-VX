@@ -17,15 +17,13 @@
 #define PIN_BUTTON_AGITATION A1
 #define PIN_BUTTON_SUPRESSION A2
 #define PIN_BUTTON_PLUMBUS A3
-#define PIN_TOGGLE_BRAKE 13
+#define PIN_TOGGLE_BRAKE 5
 #define PIN_BUTTOM_CYCLE 12
 #define PIN_POT_NANOGAIN A6
 #define PIN_POT_CORRECTION A7
-#define PIN_MOTOR 2
+#define PIN_MOTOR 3
 
-#define LCD_COLUMNS 20
-#define LCD_ROWS 4
-#define PAGE ((COLUMS) * (ROWS))
+#define MAX_VERTEX_BRIGHTNESS 85
 
 Adafruit_NeoPixel stripGenerator = Adafruit_NeoPixel(3, PIN_STRIP_GENERATOR, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripVortex1 = Adafruit_NeoPixel(16, PIN_STRIP_ROUND_1, NEO_GRB + NEO_KHZ800);
@@ -170,6 +168,18 @@ void UpdateLcdDisplay()
   }
 }
 
+void UpdateMotor()
+{
+  if (!digitalRead(PIN_TOGGLE_BRAKE))
+  {
+    analogWrite(PIN_MOTOR, map(analogRead(PIN_POT_CORRECTION), 0, 1023, 75, 255));
+  }
+  else
+  {
+    analogWrite(PIN_MOTOR, 0);
+  }
+}
+
 void CheckButtons()
 {
   buttonInjection.read();
@@ -241,6 +251,8 @@ void UpdateVortexStrip1()
   static byte wheelVortex;
   int pixelOffset = 0;
 
+  stripVortex1.setBrightness(MAX_VERTEX_BRIGHTNESS);
+
   if (timerVortex.elapsed())
   {
     timerVortex.setDelay(vertexBaseSpeed - (tuningValues.nanogain * 10));
@@ -268,13 +280,10 @@ void UpdateVortexStrip1()
       {
         if (controlStates.injection)
         {
-          // Rainbow color.
-          //stripVortex2.setPixelColor(i, Wheel(((i * 256 / stripVortex2.numPixels()) + wheelVortex2) & 255));
           stripVortex1.setPixelColor(i, Wheel(wheelVortex));
         }
         else
         {
-          // Solid color.
           stripVortex1.setPixelColor(i, Color(255, 0, 0));
         }
       }
@@ -300,6 +309,8 @@ void UpdateVortexStrip2()
   static int pixelIndex;
   static byte wheelVortex;
   int pixelOffset = 5;
+
+  stripVortex2.setBrightness(MAX_VERTEX_BRIGHTNESS);
 
   if (timerVortex.elapsed())
   {
@@ -360,6 +371,8 @@ void UpdateVortexStrip3()
   static byte wheelVortex;
   int pixelOffset = 10;
 
+  stripVortex3.setBrightness(MAX_VERTEX_BRIGHTNESS);
+
   if (timerVortex.elapsed())
   {
     timerVortex.setDelay(vertexBaseSpeed - (tuningValues.nanogain * 10));
@@ -412,61 +425,192 @@ void UpdateVortexStrip3()
   }
 }
 
-void UpdateVertexAll()
+void UpdateVertexAllWarning()
 {
-  static flasher flasherVertex(Pattern::Sin, 500, 255);
-  static flasher flasherVertex1(Pattern::RandomFlash, 500, 255);
-  static flasher flasherVertex2(Pattern::RandomFlash, 500, 255);
-  static flasher flasherVertex3(Pattern::RandomFlash, 500, 255);
 
-  if (state == warning)
+  static flasher flasherVertex1(Pattern::Sin, 950, 255);
+  static flasher flasherVertex2(Pattern::Sin, 1000, 255);
+  static flasher flasherVertex3(Pattern::Sin, 1050, 255);
+  static int oldPwmValue1, oldPwmValue2, oldPwmValue3;
+
+  static int fillStart1, count1;
+  static int fillStart2, count2;
+  static int fillStart3, count3;
+
+  const int maxRandForSupression = 25;
+
+  if (controlStates.plumbus)
   {
-    flasherVertex1.setDelay(900);
-    flasherVertex2.setDelay(1000);
-    flasherVertex3.setDelay(1100);
-    flasherVertex1.setPattern(Pattern::Sin);
-    flasherVertex2.setPattern(Pattern::Sin);
-    flasherVertex3.setPattern(Pattern::Sin);
+    fillStart2 = fillStart1;
+    fillStart3 = fillStart1;
+    count2 = count1;
+    count3 = count1;
   }
-  else if (state == critical)
+
+  if (oldPwmValue1 != flasherVertex1.getPwmValue())
   {
-    flasherVertex1.setDelay(500);
-    flasherVertex2.setDelay(500);
-    flasherVertex3.setDelay(500);
+    oldPwmValue1 = flasherVertex1.getPwmValue();
+
+    if ((controlStates.plumbus && flasherVertex1.endOfCycle()) ||
+        (!controlStates.plumbus && random(0, maxRandForSupression) == 0))
+    {
+      fillStart1 = !controlStates.supression ? 0 : random(0, stripVortex1.numPixels() - 6);
+      count1 = !controlStates.supression ? stripVortex1.numPixels() : random(3, 6);
+    }
+
+    if (controlStates.injection)
+    {
+      static msTimer timerWheel(10);
+      static byte wheelPos = 0;
+
+      if (timerWheel.elapsed())
+      {
+        wheelPos++;
+      }
+      stripVortex1.fill(Wheel(wheelPos), fillStart1, count1);
+      int brightness = map(flasherVertex1.getPwmValue(), 0, 255, 0, MAX_VERTEX_BRIGHTNESS);
+      stripVortex1.setBrightness(brightness);
+    }
+    else
+    {
+      stripVortex1.fill(Color(flasherVertex1.getPwmValue(), 0, 0), fillStart1, count1);
+      stripVortex1.setBrightness(MAX_VERTEX_BRIGHTNESS);
+    }
+    stripVortex1.show();
+  }
+
+  if (oldPwmValue2 != flasherVertex2.getPwmValue())
+  {
+    oldPwmValue2 = flasherVertex2.getPwmValue();
+
+    if ((controlStates.plumbus && flasherVertex2.endOfCycle()) ||
+        (!controlStates.plumbus && random(0, maxRandForSupression) == 0))
+    {
+      fillStart2 = !controlStates.supression ? 0 : random(0, stripVortex2.numPixels() - 6);
+      count2 = !controlStates.supression ? stripVortex2.numPixels() : random(3, 6);
+    }
+
+    if (controlStates.injection)
+    {
+      static msTimer timerWheel(10);
+      static byte wheelPos = 0;
+
+      if (timerWheel.elapsed())
+      {
+        wheelPos++;
+      }
+      stripVortex2.fill(Wheel(wheelPos), fillStart2, count2);
+      int brightness = map(flasherVertex2.getPwmValue(), 0, 255, 0, MAX_VERTEX_BRIGHTNESS);
+      stripVortex2.setBrightness(brightness);
+    }
+    else
+    {
+      stripVortex2.fill(Color(flasherVertex2.getPwmValue(), 0, 0), fillStart2, count2);
+      stripVortex2.setBrightness(MAX_VERTEX_BRIGHTNESS);
+    }
+    stripVortex2.show();
+  }
+  if (oldPwmValue3 != flasherVertex3.getPwmValue())
+  {
+    oldPwmValue3 = flasherVertex3.getPwmValue();
+
+    if ((controlStates.plumbus && flasherVertex3.endOfCycle()) ||
+        (!controlStates.plumbus && random(0, maxRandForSupression) == 0))
+    {
+      fillStart3 = !controlStates.supression ? 0 : random(0, stripVortex3.numPixels() - 6);
+      count3 = !controlStates.supression ? stripVortex3.numPixels() : random(3, 6);
+    }
+
+    if (controlStates.injection)
+    {
+      static msTimer timerWheel(10);
+      static byte wheelPos = 0;
+
+      if (timerWheel.elapsed())
+      {
+        wheelPos++;
+      }
+      stripVortex3.fill(Wheel(wheelPos), fillStart3, count3);
+      int brightness = map(flasherVertex3.getPwmValue(), 0, 255, 0, MAX_VERTEX_BRIGHTNESS);
+      stripVortex3.setBrightness(brightness);
+    }
+    else
+    {
+      stripVortex3.fill(Color(flasherVertex3.getPwmValue(), 0, 0), fillStart3, count3);
+      stripVortex3.setBrightness(MAX_VERTEX_BRIGHTNESS);
+    }
+    stripVortex3.show();
+  }
+}
+
+void UpdateVertexAllCritical()
+{
+  static flasher flasherVertex1(Pattern::RandomFlash, 750, 255);
+  static flasher flasherVertex2(Pattern::RandomFlash, 750, 255);
+  static flasher flasherVertex3(Pattern::RandomFlash, 750, 255);
+  static int oldPwmValue1, oldPwmValue2, oldPwmValue3;
+
+  stripVortex1.setBrightness(MAX_VERTEX_BRIGHTNESS);
+  stripVortex2.setBrightness(MAX_VERTEX_BRIGHTNESS);
+  stripVortex3.setBrightness(MAX_VERTEX_BRIGHTNESS);
+
+  if (controlStates.supression)
+  {
     flasherVertex1.setPattern(Pattern::RandomFlash);
     flasherVertex2.setPattern(Pattern::RandomFlash);
     flasherVertex3.setPattern(Pattern::RandomFlash);
   }
+  else
+  {
+    flasherVertex1.setPattern(Pattern::RandomReverseFlash);
+    flasherVertex2.setPattern(Pattern::RandomReverseFlash);
+    flasherVertex3.setPattern(Pattern::RandomReverseFlash);
+  }
 
-  static int oldPwmValue1;
   if (oldPwmValue1 != flasherVertex1.getPwmValue())
   {
     oldPwmValue1 = flasherVertex1.getPwmValue();
-    stripVortex1.fill(Color(flasherVertex1.getPwmValue(), 0, 0), 0, stripVortex1.numPixels());
+    if (controlStates.injection)
+    {
+      uint32_t color = flasherVertex1.getPwmValue() == flasherVertex1.getMaxPwm() ? Wheel(random(0, 256)) : 0;
+      stripVortex1.fill(color, 0, stripVortex1.numPixels());
+    }
+    else
+    {
+      stripVortex1.fill(Color(flasherVertex1.getPwmValue(), 0, 0), 0, stripVortex1.numPixels());
+    }
     stripVortex1.show();
   }
 
-  static int oldPwmValue2;
   if (oldPwmValue2 != flasherVertex2.getPwmValue())
   {
     oldPwmValue2 = flasherVertex2.getPwmValue();
-    stripVortex2.fill(Color(0, flasherVertex2.getPwmValue(), 0), 0, stripVortex2.numPixels());
+    if (controlStates.injection)
+    {
+      uint32_t color = flasherVertex2.getPwmValue() == flasherVertex2.getMaxPwm() ? Wheel(random(0, 256)) : 0;
+      stripVortex2.fill(color, 0, stripVortex2.numPixels());
+    }
+    else
+    {
+      stripVortex2.fill(Color(0, flasherVertex2.getPwmValue(), 0), 0, stripVortex2.numPixels());
+    }
     stripVortex2.show();
   }
 
-  static int oldPwmValue3;
   if (oldPwmValue3 != flasherVertex3.getPwmValue())
   {
     oldPwmValue3 = flasherVertex3.getPwmValue();
-    stripVortex3.fill(Color(0, 0, flasherVertex3.getPwmValue()), 0, stripVortex3.numPixels());
+    if (controlStates.injection)
+    {
+      uint32_t color = flasherVertex3.getPwmValue() == flasherVertex3.getMaxPwm() ? Wheel(random(0, 256)) : 0;
+      stripVortex3.fill(color, 0, stripVortex3.numPixels());
+    }
+    else
+    {
+      stripVortex3.fill(Color(0, 0, flasherVertex3.getPwmValue()), 0, stripVortex3.numPixels());
+    }
     stripVortex3.show();
   }
-
-  //stripVortex2.fill(Color(0, flasherVertex2.getPwmValue(), 0), 0, stripVortex1.numPixels());
-  // stripVortex3.fill(Color(0, 0, flasherVertex3.getPwmValue()), 0, stripVortex1.numPixels());
-
-  // stripVortex2.show();
-  //stripVortex3.show();
 }
 
 void UpdateGenerator()
@@ -516,7 +660,8 @@ void setup()
   Serial.begin(BAUD_RATE);
 
   pinMode(PIN_MOTOR, OUTPUT);
-  digitalWrite(PIN_MOTOR, LOW);
+  pinMode(PIN_TOGGLE_BRAKE, INPUT);
+  digitalWrite(PIN_TOGGLE_BRAKE, HIGH);
 
   buttonCycle.begin();
   buttonInjection.begin();
@@ -524,9 +669,9 @@ void setup()
   buttonSuppression.begin();
   buttonPlumbus.begin();
 
-  stripVortex1.setBrightness(65);
-  stripVortex2.setBrightness(65);
-  stripVortex3.setBrightness(65);
+  stripVortex1.setBrightness(MAX_VERTEX_BRIGHTNESS);
+  stripVortex2.setBrightness(MAX_VERTEX_BRIGHTNESS);
+  stripVortex3.setBrightness(MAX_VERTEX_BRIGHTNESS);
 
   stripGenerator.begin();
   stripVortex1.begin();
@@ -539,7 +684,7 @@ void setup()
   pwmController1.init(0x40);
   pwmController1.setPWMFrequency(1500);
 
-  lcd.begin(LCD_COLUMNS, LCD_ROWS);
+  lcd.begin(20, 4);
 }
 
 void loop()
@@ -554,7 +699,7 @@ void loop()
     stateLUnit = !stateLUnit;
   }
 
-  analogWrite(PIN_MOTOR, map(analogRead(PIN_POT_CORRECTION), 0, 1023, 0, 255));
+  UpdateMotor();
 
   CheckButtons();
 
@@ -572,9 +717,13 @@ void loop()
     UpdateVortexStrip2();
     UpdateVortexStrip3();
   }
-  else
+  else if (state == warning)
   {
-    UpdateVertexAll();
+    UpdateVertexAllWarning();
+  }
+  else if (state == critical)
+  {
+    UpdateVertexAllCritical();
   }
 
   if (mode == automaticActivity)

@@ -163,6 +163,7 @@ void UpdateLockLed(bool trigger = false)
     {
       if (timer.elapsed())
       {
+        flasherFlash.setDelay(random(state == warning ? 1000 : 500, 1500));
         flasherFlash.reset();
       }
     }
@@ -181,8 +182,9 @@ void CheckPot()
   static int oldGravimetricCorrection;
   gravimetricCorrection = (map(analogRead(PIN_POT_CORRECTION), 0, 1024, 0, 10));
 
-  if (oldGravimetricCorrection - 1 < gravimetricCorrection || oldGravimetricCorrection + 1 > gravimetricCorrection)
+  if (!InRange(gravimetricCorrection, oldGravimetricCorrection - 2, oldGravimetricCorrection + 2))
   {
+    oldGravimetricCorrection = gravimetricCorrection;
     activityFlag = true;
   }
 }

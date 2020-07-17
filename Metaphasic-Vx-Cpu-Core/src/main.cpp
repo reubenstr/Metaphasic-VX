@@ -387,6 +387,7 @@ void UpdateSentience()
 
 void CheckToggle()
 {
+  // TODO: might need debounce.
   static bool oldToggleSuppression;
   if (oldToggleSuppression != digitalRead(PIN_TOGGLE_SUPPRESSION))
   {
@@ -432,6 +433,8 @@ void setup()
   }
 
   stripSentienceDetected.begin();
+
+  aiState = lcars; // TEMP
 }
 
 void loop()
@@ -468,22 +471,34 @@ void loop()
   }
   // TEMP
 
-  static msTimer timerSendData(1000);
+
+  static msTimer timerActivityTimeout(8000);
+  static msTimer timerSendData(100);
+
+  CheckControlData(false);
+
   if (timerSendData.elapsed())
   {
     if (activityFlag)
     {
+      activityFlag = false;
       mode = manualActivity;
+      timerActivityTimeout.resetDelay();  
 
-      // TODO: MODE TIMEOUT TIMER
+        SendControlDataFromMaster(true);         
     }
-
-    SendControlData(activityFlag);
-    activityFlag = false;
+    else
+    {
+        SendControlDataFromMaster(false);
+    }    
   }
 
-  // TEMP
-  //CheckControlData(false);
+  if (timerActivityTimeout.elapsed())
+  {
+    mode = automaticActivity;
+  }
+
+  
 
   static msTimer flipFlopTimer(2500);
   if (flipFlopTimer.elapsed())
@@ -491,7 +506,7 @@ void loop()
     flipFlop = !flipFlop;
   }
 
-  UpdateSentience();
+  // UpdateSentience(); // TEMP
 
   UpdateSentienceIndicator();
 

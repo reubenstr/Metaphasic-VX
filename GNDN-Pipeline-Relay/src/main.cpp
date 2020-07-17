@@ -29,8 +29,8 @@
 #define PIN_LED_DISPLAY_2_DIO 9
 #define PIN_LED_DISPLAY_3_DIO 11
 
-Adafruit_NeoPixel stripManafold = Adafruit_NeoPixel(3, PIN_STRIP_ISOLINEAR_MANAFOLD, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel stripMuliplex = Adafruit_NeoPixel(3, PIN_STRIP_DYNAMIC_MULTIPLEX, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripManifold = Adafruit_NeoPixel(3, PIN_STRIP_ISOLINEAR_MANAFOLD, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripMultiplex = Adafruit_NeoPixel(3, PIN_STRIP_DYNAMIC_MULTIPLEX, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripGenerator = Adafruit_NeoPixel(3, PIN_STRIP_SYNAPTIC_GENERATOR, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripRadiation = Adafruit_NeoPixel(12, PIN_STRIP_RADIATION, NEO_GRB + NEO_KHZ800);
 
@@ -280,33 +280,64 @@ void ProcessSubspaceSwitches()
     timerDebounce.resetDelay();
     debounceFlag = true;
 
-     ToggleRelay(random(0, 4));
-     // UpdateSynapticGenerator(true);
+    ToggleRelay(random(0, 4));
+    // UpdateSynapticGenerator(true);
   }
 }
-
-void UpdateStripIndicators()
+void UPdateMultiplexIndicator()
 {
-  static flasher flasherManafold(Pattern::RandomReverseFlash, 500, 255);
-  static flasher flasherMuliplex(Pattern::RandomReverseFlash, 500, 255);
+
+  static flasher flasherMultiplex(Pattern::RandomReverseFlash, 500, 255);
 
   int delay = state == stable ? 1600 : state == warning ? 800 : state == critical ? 400 : 0;
-  flasherManafold.setDelay(delay);
-  flasherMuliplex.setDelay(delay);
+  flasherMultiplex.setDelay(delay);
 
   if (state == stable)
   {
-    stripManafold.fill(stripManafold.Color(0, 255, 0), 0, stripManafold.numPixels());
-    stripMuliplex.fill(stripMuliplex.Color(0, 255, 0), 0, stripMuliplex.numPixels());
+    stripMultiplex.fill(stripMultiplex.Color(0, 255, 0), 0, stripMultiplex.numPixels());
+  }
+  else if (state == warning)
+  {
+    if (flasherMultiplex.getPwmValue() == flasherMultiplex.getMaxPwm())
+    {
+     stripMultiplex.fill(stripMultiplex.Color(200, 100, 0), 0, stripMultiplex.numPixels());
+    }
+    else
+    {
+       stripMultiplex.fill(0, 0, stripMultiplex.numPixels());      
+    }
+  }
+  else if (state == critical)
+  {
+    static msTimer timer(500);
+    static byte wheelPos;
+    if (timer.elapsed())
+    {
+      wheelPos = random(0, 255);
+    }
+    stripMultiplex.fill(Wheel(wheelPos), 0, stripMultiplex.numPixels());
+  }
+
+  stripMultiplex.show();
+}
+
+void UpdateManifoldIndicator()
+{
+  static flasher flasherManafold(Pattern::RandomReverseFlash, 500, 255);
+
+  int delay = state == stable ? 1600 : state == warning ? 800 : state == critical ? 400 : 0;
+  flasherManafold.setDelay(delay);
+
+  if (state == stable)
+  {
+    stripManifold.fill(stripManifold.Color(0, 255, 0), 0, stripManifold.numPixels());
   }
   else
   {
-    stripManafold.fill(stripManafold.Color(flasherManafold.getPwmValue(), 0, 0), 0, stripManafold.numPixels());
-    stripMuliplex.fill(stripMuliplex.Color(flasherMuliplex.getPwmValue(), 0, 0), 0, stripMuliplex.numPixels());
+    stripManifold.fill(stripManifold.Color(0, flasherManafold.getPwmValue(), 0), 0, stripManifold.numPixels());
   }
 
-  stripManafold.show();
-  stripMuliplex.show();
+  stripManifold.show();
 }
 
 void UpdateRelayToggle()
@@ -320,7 +351,7 @@ void UpdateRelayToggle()
     if (timerRelays.elapsed())
     {
       timerRelays.setDelay(delayRelays + random(0, delayRelays));
-      
+
       UpdateSynapticGenerator(true);
     }
   }
@@ -363,8 +394,8 @@ void setup()
   pwmController1.init(0x40);
   pwmController1.setPWMFrequency(1500);
 
-  stripManafold.begin();
-  stripMuliplex.begin();
+  stripManifold.begin();
+  stripMultiplex.begin();
   stripGenerator.begin();
   stripRadiation.begin();
 
@@ -380,7 +411,7 @@ void loop()
 
   if (performActivityFlag)
   {
-    performActivityFlag = false;  
+    performActivityFlag = false;
     UpdateSynapticGenerator(true);
   }
 
@@ -392,7 +423,9 @@ void loop()
 
   UpdateLedDisplays();
 
-  UpdateStripIndicators();
+  UPdateMultiplexIndicator();
+
+  UpdateManifoldIndicator();
 
   UpdateSynapticGenerator();
 

@@ -85,6 +85,11 @@ public:
         return false;
     }
 
+    inline int getMaxPwm()
+    {
+        return _maxPwm;
+    }
+
     inline int getPwmValue()
     {
 

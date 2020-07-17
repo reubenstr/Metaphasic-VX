@@ -38,6 +38,8 @@ Button buttonMono(PIN_BUTTON_MONO);
 
 bool genesisFlag;
 int fxOffset;
+bool performMaxIntensityFlag = false;
+bool performUpdateWarningsFlag = false;
 
 enum SeedState
 {
@@ -128,13 +130,24 @@ void UpdateWarningIndicators()
     timerWarning.ForceTrigger();
   }
 
-  if (timerWarning.elapsed())
+  if (timerWarning.elapsed() || performUpdateWarningsFlag)
   {
     timerWarning.setDelay(delayTimer);
 
     int minWarnings = state == stable ? 0 : state == warning ? 1 : state == critical ? 2 : 0;
     int maxWarnings = state == stable ? 1 : state == warning ? 3 : state == critical ? 5 : 0;
-    int numWarnings = random(minWarnings, maxWarnings + 1);
+    int numWarnings;
+
+    if (performUpdateWarningsFlag)
+    {
+      performUpdateWarningsFlag = false;
+      timerWarning.resetDelay();
+      numWarnings = random(minWarnings + 1, maxWarnings + 2);
+    }
+    else
+    {
+      numWarnings = random(minWarnings, maxWarnings + 1);
+    }
 
     RandomArrayFill(warnings, numWarnings, sizeof(warnings));
 
@@ -228,12 +241,20 @@ void UpdatePWMs()
   static int targetIntensity;
   static int currentIntensity;
   int minIntensity = state == stable ? 0 : state == warning ? 3 : state == critical ? 6 : 0;
+  int maxIntensity = state == stable ? 6 : state == warning ? 8 : state == critical ? 10 : 0;
+
+  if (performMaxIntensityFlag)
+  {
+    performMaxIntensityFlag = false;
+    targetIntensity = 9;
+    timerIntensity.resetDelay();
+  }
 
   if (timerIntensity.elapsed())
   {
     if (currentIntensity == targetIntensity)
     {
-      targetIntensity = random(minIntensity, 10);
+      targetIntensity = random(minIntensity, maxIntensity);
     }
     else
     {
@@ -244,16 +265,16 @@ void UpdatePWMs()
     }
   }
 
-  pwms1[6] = 0 >= 9 - currentIntensity ? 1500 : 0;
-  pwms1[7] = 1 >= 9 - currentIntensity ? 1500 : 0;
-  pwms1[8] = 2 >= 9 - currentIntensity ? 4095 : 0;
-  pwms1[9] = 3 >= 9 - currentIntensity ? 4095 : 0;
-  pwms1[10] = 4 >= 9 - currentIntensity ? 4095 : 0;
-  pwms1[11] = 5 >= 9 - currentIntensity ? 800 : 0;
-  pwms1[12] = 6 >= 9 - currentIntensity ? 800 : 0;
-  pwms1[13] = 7 >= 9 - currentIntensity ? 800 : 0;
-  pwms1[14] = 8 >= 9 - currentIntensity ? 800 : 0;
-  pwms1[15] = 9 >= 9 - currentIntensity ? 4095 : 0;
+  pwms1[6] = 0 >= (9 - currentIntensity) ? 1500 : 0;
+  pwms1[7] = 1 >= (9 - currentIntensity) ? 1500 : 0;
+  pwms1[8] = 2 >= (9 - currentIntensity) ? 4095 : 0;
+  pwms1[9] = 3 >= (9 - currentIntensity) ? 4095 : 0;
+  pwms1[10] = 4 >= (9 - currentIntensity) ? 4095 : 0;
+  pwms1[11] = 5 >= (9 - currentIntensity) ? 800 : 0;
+  pwms1[12] = 6 >= (9 - currentIntensity) ? 800 : 0;
+  pwms1[13] = 7 >= (9 - currentIntensity) ? 800 : 0;
+  pwms1[14] = 8 >= (9 - currentIntensity) ? 800 : 0;
+  pwms1[15] = 9 >= (9 - currentIntensity) ? 4095 : 0;
 
   // Update buttons and indicators.
   static flasher flasherGenensis(Pattern::Sin, 1000, maxPwmBlueLed);
@@ -265,7 +286,7 @@ void UpdatePWMs()
   }
 
   pwms1[5] = flasherGenensis.getPwmValue();
-  pwms1[4] = maxPwmGenericLed; //currentIntensity > 7 ? maxPwmGenericLed : 0;
+  pwms1[4] = currentIntensity > 7 ? maxPwmGenericLed : 0;
   pwms1[3] = seedState == mono ? maxPwmGenericLed : 0;
   pwms1[2] = seedState == poly ? maxPwmGenericLed : 0;
 
@@ -435,21 +456,14 @@ void setup()
 void loop()
 {
 
-CheckControlData();
-
-  //TEMP
-  /*
-  static msTimer timerState(5000);
-  static int stateIndex;
-  if (timerState.elapsed())
+  if (performActivityFlag)
   {
-    if (++stateIndex > 2)
-      stateIndex = 0;
-    state = (states)stateIndex;
+    performActivityFlag = false;
+    performMaxIntensityFlag = true;
+    performUpdateWarningsFlag = true;
   }
 
-  //state = stable;
-  */
+  CheckControlData();
 
   UpdateGlyphIndicator();
 
