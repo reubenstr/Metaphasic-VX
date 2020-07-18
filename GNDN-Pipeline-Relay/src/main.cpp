@@ -287,38 +287,34 @@ void ProcessSubspaceSwitches()
 void UPdateMultiplexIndicator()
 {
 
-  static flasher flasherMultiplex(Pattern::RandomReverseFlash, 500, 255);
+  static msTimer timer(20);
+  static byte wheelPos = 0;
 
-  int delay = state == stable ? 1600 : state == warning ? 800 : state == critical ? 400 : 0;
-  flasherMultiplex.setDelay(delay);
+  int delay = state == stable ? 20 : state == warning ? 15 : state == critical ? 10 : 0;
+  timer.setDelay(delay);
 
-  if (state == stable)
+  if (timer.elapsed())
   {
-    stripMultiplex.fill(stripMultiplex.Color(0, 255, 0), 0, stripMultiplex.numPixels());
+    wheelPos++;
   }
-  else if (state == warning)
+
+  int maxRand = state == stable ? 1000 : state == warning ? 90 : state == critical ? 35 : 0;
+  static int hold = 0;
+  if (state != stable && random(0, maxRand) == 0)
   {
-    if (flasherMultiplex.getPwmValue() == flasherMultiplex.getMaxPwm())
-    {
-     stripMultiplex.fill(stripMultiplex.Color(200, 100, 0), 0, stripMultiplex.numPixels());
-    }
-    else
-    {
-       stripMultiplex.fill(0, 0, stripMultiplex.numPixels());      
-    }
+    hold = 0;
   }
-  else if (state == critical)
+
+  if (++hold < 5)
   {
-    static msTimer timer(500);
-    static byte wheelPos;
-    if (timer.elapsed())
-    {
-      wheelPos = random(0, 255);
-    }
+    stripMultiplex.fill(Color(255, 0, 0), 0, stripMultiplex.numPixels());
+  }
+  else
+  {
     stripMultiplex.fill(Wheel(wheelPos), 0, stripMultiplex.numPixels());
   }
 
-  stripMultiplex.show();
+  stripMultiplex.show(); 
 }
 
 void UpdateManifoldIndicator()

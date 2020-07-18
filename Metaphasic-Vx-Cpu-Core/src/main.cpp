@@ -500,7 +500,7 @@ void loop()
 
   
 
-  static msTimer flipFlopTimer(2500);
+  static msTimer flipFlopTimer(5000);
   if (flipFlopTimer.elapsed())
   {
     flipFlop = !flipFlop;

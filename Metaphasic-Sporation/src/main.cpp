@@ -136,7 +136,7 @@ void UpdateWarningIndicators()
 
     int minWarnings = state == stable ? 0 : state == warning ? 1 : state == critical ? 2 : 0;
     int maxWarnings = state == stable ? 1 : state == warning ? 3 : state == critical ? 5 : 0;
-    int numWarnings;
+    int numWarnings = 0;
 
     if (performUpdateWarningsFlag)
     {
@@ -153,7 +153,7 @@ void UpdateWarningIndicators()
 
     for (int i = 0; i < 6; i++)
     {
-      flasherWarnings[i].setPattern(Pattern::Solid);
+      flasherWarnings[i].setPattern(Pattern::Sin);
       flasherWarnings[i].setDelay(delayFlash + random(0, 100));
       flasherWarnings[i].repeat(warnings[i]);
     }
@@ -403,11 +403,14 @@ void CheckFxOffset()
   }
 }
 
-void CheckToggles()
+void CheckActivity()
 {
-  int toggleValue = digitalRead(PIN_TOGGLE_ASYNC) + digitalRead(PIN_TOGGLE_PULSE) + digitalRead(PIN_TOGGLE_DECAY);
+  // FxOffset checked elsewhere.
+  // Poly-Seed and Mono-Seed buttons checked elsewhere.
 
   static int oldToggleValue;
+  int toggleValue = digitalRead(PIN_TOGGLE_ASYNC) + digitalRead(PIN_TOGGLE_PULSE) + digitalRead(PIN_TOGGLE_DECAY);
+
   if (oldToggleValue != toggleValue)
   {
     oldToggleValue = toggleValue;
@@ -481,5 +484,5 @@ void loop()
 
   CheckFxOffset();
 
-  CheckToggles();
+  CheckActivity();
 }
