@@ -655,6 +655,93 @@ void CheckToggle()
   }
 }
 
+void ShutdownPanel()
+{
+
+  analogWrite(PIN_MOTOR, 0);
+
+  lcd.setCursor(0, 0);
+  lcd.print(F("System Shutdown  "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+
+  stripVortex1.fill(Color(0, 0, 0), 0, stripVortex1.numPixels());
+  stripVortex2.fill(Color(0, 0, 0), 0, stripVortex2.numPixels());
+  stripVortex3.fill(Color(0, 0, 0), 0, stripVortex3.numPixels());
+  stripCircle.fill(Color(0, 0, 0), 0, stripCircle.numPixels());
+  stripGenerator.fill(Color(0, 0, 0), 0, stripGenerator.numPixels());
+  stripVortex1.show();
+  stripVortex2.show();
+  stripVortex3.show();
+  stripCircle.show();
+  stripGenerator.show();
+
+  uint16_t pwms1[16];
+  for (int j = 0; j < 16; j++)
+  {
+    pwms1[j] = 0;
+  }
+  pwmController1.setChannelsPWM(0, 16, pwms1);
+}
+
+/*
+void CheckStartup()
+{
+  if (startupFlag)
+  {
+    uint16_t pwms1[16];
+
+    startupFlag = false;
+
+    lcd.setCursor(0, 0);
+    lcd.print(F("System Startup  "));
+    lcd.setCursor(0, 1);
+    lcd.print(F("                "));
+
+    for (int i = 0; i < 5; i++)
+    {
+      stripVortex1.fill(Color(255, 0, 0), 0, stripVortex1.numPixels());
+      stripVortex2.fill(Color(0, 255, 0), 0, stripVortex2.numPixels());
+      stripVortex3.fill(Color(0, 0, 255), 0, stripVortex3.numPixels());
+      stripCircle.fill(Color(0, 255, 0), 0, stripCircle.numPixels());
+      stripGenerator.fill(Color(0, 255, 0), 0, stripGenerator.numPixels());
+      stripVortex1.show();
+      stripVortex2.show();
+      stripVortex3.show();
+      stripCircle.show();
+      stripGenerator.show();
+
+      for (int j = 0; j < 16; j++)
+      {
+        pwms1[j] = maxPwmGenericLed;
+      }
+      pwmController1.setChannelsPWM(0, 16, pwms1);
+
+      delay(startupFlashDelay);
+
+      stripVortex1.fill(Color(0, 0, 0), 0, stripVortex1.numPixels());
+      stripVortex2.fill(Color(0, 0, 0), 0, stripVortex2.numPixels());
+      stripVortex3.fill(Color(0, 0, 0), 0, stripVortex3.numPixels());
+      stripCircle.fill(Color(0, 0, 0), 0, stripCircle.numPixels());
+      stripGenerator.fill(Color(0, 0, 0), 0, stripGenerator.numPixels());
+      stripVortex1.show();
+      stripVortex2.show();
+      stripVortex3.show();
+      stripCircle.show();
+      stripGenerator.show();
+
+      for (int j = 0; j < 16; j++)
+      {
+        pwms1[j] = 0;
+      }
+      pwmController1.setChannelsPWM(0, 16, pwms1);
+
+      delay(startupFlashDelay);
+    }
+  }
+}
+*/
+
 void setup()
 {
   Serial.begin(BAUD_RATE);
@@ -689,58 +776,63 @@ void setup()
 
 void loop()
 {
-
   CheckControlData();
 
-  if (performActivityFlag)
+  if (IsPanelBootup(polychromaticToracVertex))
   {
-    performActivityFlag = false;
-
-    stateLUnit = !stateLUnit;
-  }
-
-  UpdateMotor();
-
-  CheckButtons();
-
-  CheckPotentiometers();
-
-  UpdatePWMs();
-
-  UpdateLcdDisplay();
-
-  UpdateGenerator();
-
-  if (state == stable)
-  {
-    UpdateVortexStrip1();
-    UpdateVortexStrip2();
-    UpdateVortexStrip3();
-  }
-  else if (state == warning)
-  {
-    UpdateVertexAllWarning();
-  }
-  else if (state == critical)
-  {
-    UpdateVertexAllCritical();
-  }
-
-  if (mode == automaticActivity)
-  {
-    UpdateControlStates();
-  }
-
-  static msTimer timerCircle(5);
-  static byte wheelPos;
-  if (timerCircle.elapsed())
-  {
-    stripCircle.setBrightness(127);
-    wheelPos++;
-    for (int i = 0; i < (int)stripCircle.numPixels(); i++)
+    if (performActivityFlag)
     {
-      stripCircle.setPixelColor(i, Wheel(((i * 256 / stripCircle.numPixels()) + wheelPos) & 255));
+      performActivityFlag = false;
+      stateLUnit = !stateLUnit;
     }
-    stripCircle.show();
+
+    UpdateMotor();
+
+    CheckButtons();
+
+    CheckPotentiometers();
+
+    UpdatePWMs();
+
+    UpdateLcdDisplay();
+
+    UpdateGenerator();
+
+    if (state == stable)
+    {
+      UpdateVortexStrip1();
+      UpdateVortexStrip2();
+      UpdateVortexStrip3();
+    }
+    else if (state == warning)
+    {
+      UpdateVertexAllWarning();
+    }
+    else if (state == critical)
+    {
+      UpdateVertexAllCritical();
+    }
+
+    if (mode == automaticActivity)
+    {
+      UpdateControlStates();
+    }    
+
+    static msTimer timerCircle(5);
+    static byte wheelPos;
+    if (timerCircle.elapsed())
+    {
+      stripCircle.setBrightness(127);
+      wheelPos++;
+      for (int i = 0; i < (int)stripCircle.numPixels(); i++)
+      {
+        stripCircle.setPixelColor(i, Wheel(((i * 256 / stripCircle.numPixels()) + wheelPos) & 255));
+      }
+      stripCircle.show();
+    }
+  }
+  else
+  {
+    ShutdownPanel();
   }
 }

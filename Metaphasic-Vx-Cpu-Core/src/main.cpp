@@ -263,6 +263,11 @@ void CheckButtons()
     }
   }
 
+  if (buttonAbort.pressedFor(5000))
+  {
+    // TODO
+  }
+
   if (buttonSkynet.wasPressed())
   {
     if (!sentienceDetected)
@@ -327,40 +332,42 @@ void UpdateSentienceIndicator()
   stripSentienceDetected.show();
 }
 
+
 void AbortSequence()
-{
-  sentienceDetected = false;
-  UpdateSentienceIndicator();
+{  
+    sentienceDetected = false;
+    UpdateSentienceIndicator();
 
-  uint16_t pwms1[16];
-  for (int i = 0; i < 16; i++)
-  {
-    pwms1[i] = 0;
-  }
-
-  byte empty = 0;
-  for (int i = 0; i < 8; i++)
-  {
-    lc.setRow(0, 7 - i, empty);
-    lc.setRow(1, 7 - i, empty);
-    lc.setRow(2, 7 - i, empty);
-    pwms1[12] = ~pwms1[12];
-    pwmController1.setChannelsPWM(0, 16, pwms1);
-    delay(250);
-  }
-
-  for (int i = 0; i < 8; i++)
-  {
-    int pwmValue = ((i % 2) == 0) ? 0 : 1500; 
+    uint16_t pwms1[16];
     for (int i = 0; i < 16; i++)
     {
-      pwms1[i] = pwmValue;
+      pwms1[i] = 0;
     }
-    pwms1[12] = ((i % 2) == 1) ? 0 : 1500;
-    pwmController1.setChannelsPWM(0, 16, pwms1);
-    delay(250);
+
+    byte empty = 0;
+    for (int i = 0; i < 8; i++)
+    {
+      lc.setRow(0, 7 - i, empty);
+      lc.setRow(1, 7 - i, empty);
+      lc.setRow(2, 7 - i, empty);
+      pwms1[12] = ~pwms1[12];
+      pwmController1.setChannelsPWM(0, 16, pwms1);
+      delay(250);
+    }
+
+    for (int i = 0; i < 8; i++)
+    {
+      int pwmValue = ((i % 2) == 0) ? 0 : 1500;
+      for (int i = 0; i < 16; i++)
+      {
+        pwms1[i] = pwmValue;
+      }
+      pwms1[12] = ((i % 2) == 1) ? 0 : 1500;
+      pwmController1.setChannelsPWM(0, 16, pwms1);
+      delay(250);    
   }
 }
+
 
 void UpdateSentience()
 {
@@ -395,6 +402,20 @@ void CheckToggle()
     activityFlag = true;
   }
 }
+
+void UpdateFlipFlop()
+{
+  static msTimer flipFlopTimer(5000);
+  if (flipFlopTimer.elapsed())
+  {
+    flipFlop = !flipFlop;
+  }
+}
+
+
+
+
+
 
 void setup()
 {
@@ -434,27 +455,39 @@ void setup()
 
   stripSentienceDetected.begin();
 
-  aiState = lcars; // TEMP
+  state = stable;
+  aiState = lcars;
 }
 
 void loop()
 {
+  static msTimer timerActivityTimeout(8000);
+  static msTimer timerSendData(100);
 
-  // State controller for the entire VX system.
-  /*
-  static msTimer timerState(5000);
-  if (timerState.elapsed())
+  CheckStartupSequence();
+
+  CheckControlData(true);
+
+  if (timerSendData.elapsed())
   {
-    //state = (states)random(0, 3);
-    static int s = 0;
-    if (++s > 2)
+    if (activityFlag)
     {
-      s = 0;
-    }
+      activityFlag = false;
+      mode = manualActivity;
+      timerActivityTimeout.resetDelay();
 
-    state = (states)s;
+      SendControlDataFromMaster(true);
+    }
+    else
+    {
+      SendControlDataFromMaster(false);
+    }
   }
-  */
+
+  if (timerActivityTimeout.elapsed())
+  {
+    mode = automaticActivity;
+  }
 
   // TEMP
   if (aiState == skynet)
@@ -471,40 +504,7 @@ void loop()
   }
   // TEMP
 
-
-  static msTimer timerActivityTimeout(8000);
-  static msTimer timerSendData(100);
-
-  CheckControlData(false);
-
-  if (timerSendData.elapsed())
-  {
-    if (activityFlag)
-    {
-      activityFlag = false;
-      mode = manualActivity;
-      timerActivityTimeout.resetDelay();  
-
-        SendControlDataFromMaster(true);         
-    }
-    else
-    {
-        SendControlDataFromMaster(false);
-    }    
-  }
-
-  if (timerActivityTimeout.elapsed())
-  {
-    mode = automaticActivity;
-  }
-
-  
-
-  static msTimer flipFlopTimer(5000);
-  if (flipFlopTimer.elapsed())
-  {
-    flipFlop = !flipFlop;
-  }
+  UpdateFlipFlop();
 
   // UpdateSentience(); // TEMP
 

@@ -75,8 +75,8 @@ void UpdateLedDisplays()
   static int value1, value2, value3;
   static int target1, target2, target3;
 
-  int minDelay = state == stable ? 100 : state == warning ? 40 : state == critical ? 5 : 0;
-  int maxDelay = state == stable ? 300 : state == warning ? 120 : state == critical ? 15 : 0;
+  int minDelay = state == stable ? 250 : state == warning ? 60 : state == critical ? 7 : 0;
+  int maxDelay = state == stable ? 450 : state == warning ? 160 : state == critical ? 20 : 0;
   int minRange = state == stable ? 0 : state == warning ? 100 : state == critical ? 1000 : 0;
   int maxRange = state == stable ? 100 : state == warning ? 1000 : state == critical ? 10000 : 0;
   int spread = state == stable ? 1 : state == warning ? 9 : state == critical ? 21 : 0;
@@ -179,7 +179,7 @@ void UpdatePWMs()
 {
   uint16_t pwms1[16];
 
-  // System in Terminal Flux
+  // Tachyon Sensormatic Grid : System in Terminal Flux
   int systemsInFlux = state == stable ? 1 : state == warning ? 2 : state == critical ? 3 : 0;
   int fluxDelay = state == stable ? 5000 : state == warning ? 3000 : state == critical ? 1000 : 0;
 
@@ -195,6 +195,7 @@ void UpdatePWMs()
   pwms1[1] = inFlux[1] ? maxPwmGenericLed : 0;
   pwms1[2] = inFlux[2] ? maxPwmGenericLed : 0;
   pwms1[3] = inFlux[3] ? maxPwmGenericLed : 0;
+  ///////////////////////////////////////////////////////
 
   // Photonic Lock 7
   int totalSubspaceValue = DeMultiplex(11) + DeMultiplex(12) + DeMultiplex(13) + DeMultiplex(14) + DeMultiplex(15);
@@ -246,6 +247,22 @@ void UpdatePWMs()
   // Em. Pass: 12
   pwms1[12] = !DeMultiplex(6) ? maxPwmRedLed : 0;
 
+  if (!IsPanelBootup(tachyonSensormaticGrid))
+  {
+    for (int i = 0; i < 4; i++)
+    {
+      pwms1[i] = 0;
+    }
+  }
+
+  if (!IsPanelBootup(gndnPipelineRelay))
+  {
+    for (int i = 4; i < 16; i++)
+    {
+      pwms1[i] = 0;
+    }
+  }
+
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
 
@@ -284,7 +301,7 @@ void ProcessSubspaceSwitches()
     // UpdateSynapticGenerator(true);
   }
 }
-void UPdateMultiplexIndicator()
+void UpdateMultiplexIndicator()
 {
 
   static msTimer timer(20);
@@ -314,7 +331,7 @@ void UPdateMultiplexIndicator()
     stripMultiplex.fill(Wheel(wheelPos), 0, stripMultiplex.numPixels());
   }
 
-  stripMultiplex.show(); 
+  stripMultiplex.show();
 }
 
 void UpdateManifoldIndicator()
@@ -336,23 +353,6 @@ void UpdateManifoldIndicator()
   stripManifold.show();
 }
 
-void UpdateRelayToggle()
-{
-  // Toggle relays when mode is active.
-  static msTimer timerRelays(2000);
-  int delayRelays = state == stable ? 1500 : state == warning ? 700 : state == critical ? 350 : 0;
-
-  if (mode == automaticActivity)
-  {
-    if (timerRelays.elapsed())
-    {
-      timerRelays.setDelay(delayRelays + random(0, delayRelays));
-
-      UpdateSynapticGenerator(true);
-    }
-  }
-}
-
 void CheckToggleActivity()
 {
   static int oldToggleSum;
@@ -366,6 +366,34 @@ void CheckToggleActivity()
     oldToggleSum = toggleSum;
     activityFlag = true;
   }
+}
+
+void ShutdownPanelSensormaticGrid()
+{
+  stripRadiation.fill(0, 0, stripRadiation.numPixels());
+  stripRadiation.show();
+
+  ledDisplay1.clear();
+  ledDisplay2.clear();
+  ledDisplay3.clear();
+}
+
+void ShutdownPanelGndnPipelineRelay()
+{
+
+   digitalWrite(PIN_RELAY_LEFT_1, LOW);
+  digitalWrite(PIN_RELAY_LEFT_2, LOW);
+  digitalWrite(PIN_RELAY_RIGHT_1, LOW);
+  digitalWrite(PIN_RELAY_RIGHT_2, LOW);
+
+  stripGenerator.fill(0, 0, stripGenerator.numPixels());
+  stripGenerator.show();
+
+  stripMultiplex.fill(0, 0, stripMultiplex.numPixels());
+  stripMultiplex.show();
+
+  stripManifold.fill(0, 0, stripManifold.numPixels());
+  stripManifold.show();
 }
 
 void setup()
@@ -405,27 +433,39 @@ void loop()
 
   CheckControlData();
 
-  if (performActivityFlag)
-  {
-    performActivityFlag = false;
-    UpdateSynapticGenerator(true);
-  }
-
   UpdatePWMs();
 
-  ProcessSubspaceSwitches();
+  if (IsPanelBootup(tachyonSensormaticGrid))
+  {
+    UpdateRadiation();
 
-  UpdateRadiation();
+    UpdateLedDisplays();
+  }
+  else
+  {
+    ShutdownPanelSensormaticGrid();
+  }
 
-  UpdateLedDisplays();
+  if (IsPanelBootup(gndnPipelineRelay))
+  {
+    if (performActivityFlag)
+    {
+      performActivityFlag = false;
+      UpdateSynapticGenerator(true);
+    }
 
-  UPdateMultiplexIndicator();
+    ProcessSubspaceSwitches();
 
-  UpdateManifoldIndicator();
+    UpdateMultiplexIndicator();
 
-  UpdateSynapticGenerator();
+    UpdateManifoldIndicator();
 
-  // UpdateRelayToggle(); // TEMP
-
-  CheckToggleActivity();
+    UpdateSynapticGenerator();
+    
+    CheckToggleActivity();
+  }
+  else
+  {
+    ShutdownPanelGndnPipelineRelay();
+  }
 }

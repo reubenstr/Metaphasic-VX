@@ -40,30 +40,28 @@ void UpdateStrips(int offset)
 
 void UpdateLambda()
 {
-static msTimer timer(1000);
-static msTimer timerFlash(200);
-static byte wheelPos;
-static bool toggle = false;
+  static msTimer timer(1000);
+  static msTimer timerFlash(200);
+  static byte wheelPos;
+  static bool toggle = false;
 
   int delay = state == stable ? 1000 : state == warning ? 750 : state == critical ? 500 : 0;
 
+  if (timer.elapsed())
+  {
+    timer.setDelay(delay);
+    wheelPos = random(0, 256);
+    timerFlash.resetDelay();
+    toggle = true;
+  }
 
-if (timer.elapsed())
-{
-  timer.setDelay(delay);
- wheelPos = random(0, 256);
- timerFlash.resetDelay();
- toggle = true;
-}
-
-if (timerFlash.elapsed())
-{
+  if (timerFlash.elapsed())
+  {
     toggle = false;
-}
- 
-  stripLambda.setPixelColor(0, toggle ? Wheel(wheelPos) : 0); 
-  stripLambda.show();
+  }
 
+  stripLambda.setPixelColor(0, toggle ? Wheel(wheelPos) : 0);
+  stripLambda.show();
 }
 
 void UpdateLcdText()
@@ -189,6 +187,22 @@ void CheckPot()
   }
 }
 
+void ShutdownPanel()
+{
+
+  analogWrite(PIN_LED_LOCK, 0);
+  digitalWrite(PIN_LED_POWER_ON, LOW);
+
+  stripDc.fill(0, 0, stripDc.numPixels());
+  stripDc.show();
+
+  stripDistribution.fill(0, 0, stripDistribution.numPixels());
+  stripDistribution.show();
+
+  stripLambda.fill(0, 0, stripLambda.numPixels());
+  stripLambda.show();
+}
+
 void setup(void)
 {
 
@@ -197,8 +211,6 @@ void setup(void)
   pinMode(PIN_POT_CORRECTION, INPUT);
   pinMode(PIN_LED_LOCK, OUTPUT);
   pinMode(PIN_LED_POWER_ON, OUTPUT);
-
-  digitalWrite(PIN_LED_POWER_ON, HIGH);
 
   stripDc.begin();
   stripDistribution.begin();
@@ -237,24 +249,34 @@ void loop()
 
   CheckControlData();
 
-  if (performActivityFlag)
+  if (IsPanelBootup(polychromaticToracVertex))
   {
-    performActivityFlag = false;
 
-    UpdateLockLed(true);
+    digitalWrite(PIN_LED_POWER_ON, HIGH);
+
+    if (performActivityFlag)
+    {
+      performActivityFlag = false;
+
+      UpdateLockLed(true);
+    }
+
+    CheckPot();
+
+    UpdateLockLed();
+
+    UpdateLcdSin(gravimetricCorrection);
+
+    UpdateLcdIntensity();
+
+    UpdateLcdText();
+
+    UpdateLambda();
+
+    UpdateStrips(gravimetricCorrection);
   }
-
-  CheckPot();
-
-  UpdateLockLed();
-
-  UpdateLcdSin(gravimetricCorrection);
-
-  UpdateLcdIntensity();
-
-  UpdateLcdText();
-
-  UpdateLambda();
-
-  UpdateStrips(gravimetricCorrection);
+  else
+  {
+    ShutdownPanel();
+  }
 }
