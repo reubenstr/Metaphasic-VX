@@ -189,6 +189,7 @@ void CheckPot()
 
 void ShutdownPanel()
 {
+  tft.fillScreen(ST77XX_BLACK);
 
   analogWrite(PIN_LED_LOCK, 0);
   digitalWrite(PIN_LED_POWER_ON, LOW);
@@ -201,6 +202,19 @@ void ShutdownPanel()
 
   stripLambda.fill(0, 0, stripLambda.numPixels());
   stripLambda.show();
+}
+
+void SetupTft()
+{
+  // Draw border.
+  uint16_t color = ST77XX_WHITE;
+  tft.drawLine(0, 0, 0, tft.height() - 1, color);
+  tft.drawLine(0, tft.height() - 1, tft.width() - 1, tft.height() - 1, color);
+  tft.drawLine(tft.width() - 1, tft.height() - 1, tft.width() - 1, 0, color);
+  tft.drawLine(tft.width() - 1, 0, 0, 0, color);
+  // Draw misc. features.
+  tft.drawLine(0, 25, tft.width() - 1, 25, color);
+  tft.drawLine(0, 109, tft.width() - 1, 109, color);
 }
 
 void setup(void)
@@ -232,25 +246,23 @@ void setup(void)
   tft.setTextWrap(true);
   tft.setTextSize(2);
   tft.print("INTENSITY:");
-
-  // Draw border.
-  uint16_t color = ST77XX_WHITE;
-  tft.drawLine(0, 0, 0, tft.height() - 1, color);
-  tft.drawLine(0, tft.height() - 1, tft.width() - 1, tft.height() - 1, color);
-  tft.drawLine(tft.width() - 1, tft.height() - 1, tft.width() - 1, 0, color);
-  tft.drawLine(tft.width() - 1, 0, 0, 0, color);
-  // Draw misc. features.
-  tft.drawLine(0, 25, tft.width() - 1, 25, color);
-  tft.drawLine(0, 109, tft.width() - 1, 109, color);
 }
 
 void loop()
 {
 
+  static bool setupTftFlag;
+
   CheckControlData();
 
-  if (IsPanelBootup(polychromaticToracVertex))
+  if (IsPanelBootup(dilithumPowerFrame))
   {
+
+    if (setupTftFlag)
+    {
+      setupTftFlag = false;
+      SetupTft();
+    }
 
     digitalWrite(PIN_LED_POWER_ON, HIGH);
 
@@ -277,6 +289,7 @@ void loop()
   }
   else
   {
+    setupTftFlag = true;
     ShutdownPanel();
   }
 }

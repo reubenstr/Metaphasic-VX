@@ -418,6 +418,38 @@ void CheckActivity()
   }
 }
 
+void ShutdownPanelSystemStatus()
+{
+stripStates.fill(0, 0, stripStates.numPixels());
+  stripStates.show();
+
+  stripWarning1.fill(0, 0, stripWarning1.numPixels());
+  stripWarning1.show();
+
+  stripWarning2.fill(0, 0, stripWarning2.numPixels());
+  stripWarning2.show();
+
+  stripGlyph.fill(0, 0, stripGlyph.numPixels());
+  stripGlyph.show();
+}
+
+void ShutdownPanelMetaphasicSportation()
+{  
+  stripBackground.fill(0, 0, stripBackground.numPixels());
+  stripBackground.show();
+
+  stripChamber.fill(0, 0, stripChamber.numPixels());
+  stripChamber.show();
+
+  uint16_t pwms1[16];
+  for(int i = 0; i < 16; i++)
+  {
+    pwms1[i] = 0;
+  }
+  pwmController1.setChannelsPWM(0, 16, pwms1);  
+  pwmController2.setChannelsPWM(0, 16, pwms1);
+}
+
 void setup()
 {
   Serial.begin(BAUD_RATE);
@@ -459,30 +491,45 @@ void setup()
 void loop()
 {
 
-  if (performActivityFlag)
-  {
-    performActivityFlag = false;
-    performMaxIntensityFlag = true;
-    performUpdateWarningsFlag = true;
-  }
-
   CheckControlData();
 
-  UpdateGlyphIndicator();
+  if (IsPanelBootup(realTimeSystemStatus))
+  {
+    UpdateGlyphIndicator();
 
-  UpdateStateIndicators();
+    UpdateStateIndicators();
 
-  UpdateWarningIndicators();
+    UpdateWarningIndicators();
+  }
+  else
+  {
+    ShutdownPanelSystemStatus();
+  }
 
-  UpdateChamber();
+  if (IsPanelBootup(metaphasicSporation))
+  {
 
-  UpdatePWMs();
+    if (performActivityFlag)
+    {
+      performActivityFlag = false;
+      performMaxIntensityFlag = true;
+      performUpdateWarningsFlag = true;
+    }
 
-  UpdateCloudBank9();
+    UpdateChamber();
 
-  UpdateCloudBank9Background();
+    UpdatePWMs();
 
-  CheckFxOffset();
+    UpdateCloudBank9();
 
-  CheckActivity();
+    UpdateCloudBank9Background();
+
+    CheckFxOffset();
+
+    CheckActivity();
+  }
+  else
+  {
+    ShutdownPanelMetaphasicSportation();
+  }
 }

@@ -265,7 +265,7 @@ void CheckButtons()
 
   if (buttonAbort.pressedFor(5000))
   {
-    // TODO
+    CheckStartupSequence(true);
   }
 
   if (buttonSkynet.wasPressed())
@@ -332,42 +332,40 @@ void UpdateSentienceIndicator()
   stripSentienceDetected.show();
 }
 
-
 void AbortSequence()
-{  
-    sentienceDetected = false;
-    UpdateSentienceIndicator();
+{
+  sentienceDetected = false;
+  UpdateSentienceIndicator();
 
-    uint16_t pwms1[16];
+  uint16_t pwms1[16];
+  for (int i = 0; i < 16; i++)
+  {
+    pwms1[i] = 0;
+  }
+
+  byte empty = 0;
+  for (int i = 0; i < 8; i++)
+  {
+    lc.setRow(0, 7 - i, empty);
+    lc.setRow(1, 7 - i, empty);
+    lc.setRow(2, 7 - i, empty);
+    pwms1[12] = ~pwms1[12];
+    pwmController1.setChannelsPWM(0, 16, pwms1);
+    delay(250);
+  }
+
+  for (int i = 0; i < 8; i++)
+  {
+    int pwmValue = ((i % 2) == 0) ? 0 : 1500;
     for (int i = 0; i < 16; i++)
     {
-      pwms1[i] = 0;
+      pwms1[i] = pwmValue;
     }
-
-    byte empty = 0;
-    for (int i = 0; i < 8; i++)
-    {
-      lc.setRow(0, 7 - i, empty);
-      lc.setRow(1, 7 - i, empty);
-      lc.setRow(2, 7 - i, empty);
-      pwms1[12] = ~pwms1[12];
-      pwmController1.setChannelsPWM(0, 16, pwms1);
-      delay(250);
-    }
-
-    for (int i = 0; i < 8; i++)
-    {
-      int pwmValue = ((i % 2) == 0) ? 0 : 1500;
-      for (int i = 0; i < 16; i++)
-      {
-        pwms1[i] = pwmValue;
-      }
-      pwms1[12] = ((i % 2) == 1) ? 0 : 1500;
-      pwmController1.setChannelsPWM(0, 16, pwms1);
-      delay(250);    
+    pwms1[12] = ((i % 2) == 1) ? 0 : 1500;
+    pwmController1.setChannelsPWM(0, 16, pwms1);
+    delay(250);
   }
 }
-
 
 void UpdateSentience()
 {
@@ -412,10 +410,26 @@ void UpdateFlipFlop()
   }
 }
 
+void ShutdownPanel()
+{
+  stripSentienceDetected.fill(0, 0, stripSentienceDetected.numPixels());
+  stripSentienceDetected.show();
 
+  for (int i = 0; i < 8; i++)
+  {
+    lc.setRow(0, 7 - i, 0);
+    lc.setRow(1, 7 - i, 0);
+    lc.setRow(2, 7 - i, 0);
+  }
 
+  uint16_t pwms1[16];
+  for (int i = 0; i < 16; i++)
+  {
+    pwms1[i] = 0;
+  }
 
-
+  pwmController1.setChannelsPWM(0, 16, pwms1);
+}
 
 void setup()
 {
@@ -436,17 +450,17 @@ void setup()
   pwmController1.init(0x00);
   pwmController1.setPWMFrequency(1500);
 
+  lc.clearDisplay(0);
   lc.shutdown(0, false);
   lc.setIntensity(0, 2);
-  lc.clearDisplay(0);
 
+  lc.clearDisplay(1);
   lc.shutdown(1, false);
   lc.setIntensity(1, 2);
-  lc.clearDisplay(1);
 
+  lc.clearDisplay(2);
   lc.shutdown(2, false);
   lc.setIntensity(2, 2);
-  lc.clearDisplay(2);
 
   for (int i = 0; i < 8; i++)
   {
@@ -467,6 +481,12 @@ void loop()
   CheckStartupSequence();
 
   CheckControlData(true);
+
+  static msTimer temp(1000);
+  if (temp.elapsed())
+  {
+    // activityFlag = true;
+  }
 
   if (timerSendData.elapsed())
   {
@@ -504,28 +524,35 @@ void loop()
   }
   // TEMP
 
-  UpdateFlipFlop();
+  if (IsPanelBootup(metaphasicVxCpuCore))
+  {
+    UpdateFlipFlop();
 
-  // UpdateSentience(); // TEMP
+    // UpdateSentience(); // TEMP
 
-  UpdateSentienceIndicator();
+    UpdateSentienceIndicator();
 
-  CheckToggle();
+    CheckToggle();
 
-  UpdatePWMs();
+    UpdatePWMs();
 
-  CheckButtons();
+    CheckButtons();
 
-  ProcessErrors();
+    ProcessErrors();
 
-  MemoryBank();
+    MemoryBank();
 
-  if (aiState == skynet)
-    Skynet();
-  else if (aiState == lcars)
-    Lcars();
-  else if (aiState == kitt)
-    Kitt();
-  else if (aiState == hal)
-    Hal();
+    if (aiState == skynet)
+      Skynet();
+    else if (aiState == lcars)
+      Lcars();
+    else if (aiState == kitt)
+      Kitt();
+    else if (aiState == hal)
+      Hal();
+  }
+  else
+  {
+    ShutdownPanel();
+  }
 }

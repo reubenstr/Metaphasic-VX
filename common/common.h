@@ -99,7 +99,7 @@ void CheckControlData(bool masterPanel = false)
 
 	if (dataReadyFlag)
 	{
-		int checkSum = data[0] + data[1] + data[2] + data[3] + data[4];
+		byte checkSum = data[0] + data[1] + data[2] + data[3] + data[4];
 
 		if (checkSum != data[5])
 		{

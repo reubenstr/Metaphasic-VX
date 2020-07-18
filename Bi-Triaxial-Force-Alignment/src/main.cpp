@@ -284,15 +284,37 @@ void CheckActivity()
   }
 }
 
-void setup()
+void ShutdownPanel()
 {
-  delay(500);
+  uint16_t pwms1[16];
+
+  for (int i = 0; i < 16; i++)
+  {
+    pwms1[i] = 0;
+  }
+
+  pwmController1.setChannelsPWM(0, 16, pwms1);
+  pwmController2.setChannelsPWM(0, 16, pwms1);
+
+  stripIndicatorLeft.fill(0, 0, stripIndicatorLeft.numPixels());
+  stripIndicatorRight.fill(0, 0, stripIndicatorRight.numPixels());
+  stripIndicatorLeft.show();
+  stripIndicatorRight.show();
+}
+
+void setup()
+{ 
   Serial.begin(BAUD_RATE);
 
   pinMode(PIN_TOGGLE_1, INPUT);
   digitalWrite(PIN_TOGGLE_1, HIGH);
   pinMode(PIN_TOGGLE_2, INPUT);
   digitalWrite(PIN_TOGGLE_2, HIGH);
+
+  stripIndicatorLeft.begin();
+  stripIndicatorRight.begin();
+  stripIndicatorLeft.show();
+  stripIndicatorRight.show();
 
   Wire.begin();
   pwmController1.resetDevices();
@@ -302,8 +324,7 @@ void setup()
   pwmController2.init(0x41);
   pwmController2.setPWMFrequency(1500);
 
-  stripIndicatorLeft.begin();
-  stripIndicatorRight.begin();
+  
 }
 
 void loop()
@@ -311,14 +332,21 @@ void loop()
 
   CheckControlData();
 
-  int brightnessOffset = map(analogRead(PIN_ANALOG_POT_ATOMIC_TRI_BOND), 0, 1023, 0, 200);
-  stripIndicatorLeft.setBrightness(100 - brightnessOffset / 2.5);
-  stripIndicatorRight.setBrightness(255 - brightnessOffset);
+  if (IsPanelBootup(biTriaxialForceAlignment))
+  {
+    int brightnessOffset = map(analogRead(PIN_ANALOG_POT_ATOMIC_TRI_BOND), 0, 1023, 0, 200);
+    stripIndicatorLeft.setBrightness(100 - brightnessOffset / 2.5);
+    stripIndicatorRight.setBrightness(255 - brightnessOffset);
 
-  UpdateLeftTriangle();
+    UpdateLeftTriangle();
 
-  bool fill = digitalRead(PIN_TOGGLE_2);
-  UpdateRightTriangle(fill);
+    bool fill = digitalRead(PIN_TOGGLE_2);
+    UpdateRightTriangle(fill);
 
-  CheckActivity();
+    CheckActivity();
+  }
+  else
+  {
+    ShutdownPanel();
+  }
 }

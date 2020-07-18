@@ -378,13 +378,18 @@ void ShutdownPanelSensormaticGrid()
   ledDisplay3.clear();
 }
 
+void TurnOffAllRelays()
+{
+    digitalWrite(PIN_RELAY_LEFT_1, HIGH);
+  digitalWrite(PIN_RELAY_LEFT_2, HIGH);
+  digitalWrite(PIN_RELAY_RIGHT_1, HIGH);
+  digitalWrite(PIN_RELAY_RIGHT_2, HIGH);
+}
+
 void ShutdownPanelGndnPipelineRelay()
 {
 
-   digitalWrite(PIN_RELAY_LEFT_1, LOW);
-  digitalWrite(PIN_RELAY_LEFT_2, LOW);
-  digitalWrite(PIN_RELAY_RIGHT_1, LOW);
-  digitalWrite(PIN_RELAY_RIGHT_2, LOW);
+  TurnOffAllRelays();
 
   stripGenerator.fill(0, 0, stripGenerator.numPixels());
   stripGenerator.show();
@@ -412,6 +417,8 @@ void setup()
   pinMode(PIN_RELAY_LEFT_2, OUTPUT);
   pinMode(PIN_RELAY_RIGHT_1, OUTPUT);
   pinMode(PIN_RELAY_RIGHT_2, OUTPUT);
+
+  TurnOffAllRelays();
 
   Wire.begin();
   pwmController1.resetDevices();
@@ -461,7 +468,7 @@ void loop()
     UpdateManifoldIndicator();
 
     UpdateSynapticGenerator();
-    
+
     CheckToggleActivity();
   }
   else
