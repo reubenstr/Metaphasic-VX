@@ -7,14 +7,15 @@
 #include "flasher.h"           // Local libary.
 
 #define PIN_STRIP_ISOLINEAR_MANAFOLD 13
-#define PIN_STRIP_DYNAMIC_MULTIPLEX A1
+//#define PIN_STRIP_DYNAMIC_MULTIPLEX A1
 #define PIN_STRIP_SYNAPTIC_GENERATOR A0
 #define PIN_STRIP_RADIATION 12
+#define PIN_STRIP_GLYPH_INDICATOR 8
 
 #define PIN_RELAY_LEFT_1 A3
 #define PIN_RELAY_LEFT_2 A2
 #define PIN_RELAY_RIGHT_1 10
-#define PIN_RELAY_RIGHT_2 8
+#define PIN_RELAY_RIGHT_2 A1
 
 #define PIN_DECODER_S0 2
 #define PIN_DECODER_S1 3
@@ -29,10 +30,11 @@
 #define PIN_LED_DISPLAY_2_DIO 9
 #define PIN_LED_DISPLAY_3_DIO 11
 
-Adafruit_NeoPixel stripManifold = Adafruit_NeoPixel(3, PIN_STRIP_ISOLINEAR_MANAFOLD, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel stripMultiplex = Adafruit_NeoPixel(3, PIN_STRIP_DYNAMIC_MULTIPLEX, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripManifold = Adafruit_NeoPixel(3 + 3, PIN_STRIP_ISOLINEAR_MANAFOLD, NEO_GRB + NEO_KHZ800);
+//Adafruit_NeoPixel stripMultiplex = Adafruit_NeoPixel(3, PIN_STRIP_DYNAMIC_MULTIPLEX, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripGenerator = Adafruit_NeoPixel(3, PIN_STRIP_SYNAPTIC_GENERATOR, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripRadiation = Adafruit_NeoPixel(12, PIN_STRIP_RADIATION, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel stripGlyphs = Adafruit_NeoPixel(3, PIN_STRIP_GLYPH_INDICATOR, NEO_RGB + NEO_KHZ800);
 
 PCA9685 pwmController1;
 
@@ -40,7 +42,7 @@ TM1637Display ledDisplay1(PIN_LED_DISPLAY_1_CLK, PIN_LED_DISPLAY_1_DIO);
 TM1637Display ledDisplay2(PIN_LED_DISPLAY_2_CLK, PIN_LED_DISPLAY_2_DIO);
 TM1637Display ledDisplay3(PIN_LED_DISPLAY_3_CLK, PIN_LED_DISPLAY_3_DIO);
 
-int temp;
+bool relayStates[4];
 
 bool DeMultiplex(int channel)
 {
@@ -48,6 +50,8 @@ bool DeMultiplex(int channel)
   digitalWrite(PIN_DECODER_S1, channel & 0b00000010);
   digitalWrite(PIN_DECODER_S2, channel & 0b00000100);
   digitalWrite(PIN_DECODER_S3, channel & 0b00001000);
+
+  delayMicroseconds(50); // Not sure if required.
 
   return analogRead(PIN_DECORDER_SIG) < 100 ? false : true;
 }
@@ -268,14 +272,17 @@ void UpdatePWMs()
 
 void ToggleRelay(int relay)
 {
-  if (relay == 0)
-    digitalWrite(PIN_RELAY_LEFT_1, !digitalRead(PIN_RELAY_LEFT_1));
-  else if (relay == 1)
-    digitalWrite(PIN_RELAY_LEFT_2, !digitalRead(PIN_RELAY_LEFT_2));
-  else if (relay == 2)
-    digitalWrite(PIN_RELAY_RIGHT_1, !digitalRead(PIN_RELAY_RIGHT_1));
-  else if (relay == 3)
-    digitalWrite(PIN_RELAY_RIGHT_2, !digitalRead(PIN_RELAY_RIGHT_2));
+
+  if (relay > 3)
+  {
+    return;
+  }
+
+  relayStates[relay] = !relayStates[relay];
+  digitalWrite(PIN_RELAY_LEFT_1, relayStates[0]);
+  digitalWrite(PIN_RELAY_LEFT_2, relayStates[1]);
+  digitalWrite(PIN_RELAY_RIGHT_1, relayStates[2]);
+  digitalWrite(PIN_RELAY_RIGHT_2, relayStates[3]);
 }
 
 void ProcessSubspaceSwitches()
@@ -324,15 +331,16 @@ void UpdateMultiplexIndicator()
 
   if (++hold < 5)
   {
-    stripMultiplex.fill(Color(255, 0, 0), 0, stripMultiplex.numPixels());
+    stripManifold.fill(Color(255, 0, 0), 3, 3);
   }
   else
   {
-    stripMultiplex.fill(Wheel(wheelPos), 0, stripMultiplex.numPixels());
+    stripManifold.fill(Wheel(wheelPos), 3, 3);
   }
 
-  stripMultiplex.show();
+  stripManifold.show();
 }
+
 
 void UpdateManifoldIndicator()
 {
@@ -343,14 +351,21 @@ void UpdateManifoldIndicator()
 
   if (state == stable)
   {
-    stripManifold.fill(stripManifold.Color(0, 255, 0), 0, stripManifold.numPixels());
+    stripManifold.fill(Color(0, 255, 0), 0, 3);
   }
   else
   {
-    stripManifold.fill(stripManifold.Color(0, flasherManafold.getPwmValue(), 0), 0, stripManifold.numPixels());
+    stripManifold.fill(Color(0, flasherManafold.getPwmValue(), 0), 0, 3);
   }
-
   stripManifold.show();
+}
+
+void UpdateGlyphIndicators()
+{
+  stripGlyphs.setPixelColor(0, DeMultiplex(9) ? 0 : Color(0, 0, 255));
+  stripGlyphs.setPixelColor(1, DeMultiplex(10) ? 0 : Color(0, 255, 0));
+  stripGlyphs.setPixelColor(2, DeMultiplex(8) ? 0 : Color(255, 0, 0));
+  stripGlyphs.show();
 }
 
 void CheckToggleActivity()
@@ -380,7 +395,7 @@ void ShutdownPanelSensormaticGrid()
 
 void TurnOffAllRelays()
 {
-    digitalWrite(PIN_RELAY_LEFT_1, HIGH);
+  digitalWrite(PIN_RELAY_LEFT_1, HIGH);
   digitalWrite(PIN_RELAY_LEFT_2, HIGH);
   digitalWrite(PIN_RELAY_RIGHT_1, HIGH);
   digitalWrite(PIN_RELAY_RIGHT_2, HIGH);
@@ -393,18 +408,16 @@ void ShutdownPanelGndnPipelineRelay()
 
   stripGenerator.fill(0, 0, stripGenerator.numPixels());
   stripGenerator.show();
-
-  stripMultiplex.fill(0, 0, stripMultiplex.numPixels());
-  stripMultiplex.show();
-
+ 
   stripManifold.fill(0, 0, stripManifold.numPixels());
   stripManifold.show();
+
+  stripGlyphs.fill(0, 0, stripGlyphs.numPixels());
+  stripGlyphs.show();
 }
 
 void setup()
 {
-  delay(500);
-
   Serial.begin(BAUD_RATE);
 
   pinMode(PIN_DECODER_S0, OUTPUT);
@@ -425,10 +438,11 @@ void setup()
   pwmController1.init(0x40);
   pwmController1.setPWMFrequency(1500);
 
-  stripManifold.begin();
-  stripMultiplex.begin();
+  stripManifold.begin(); 
   stripGenerator.begin();
   stripRadiation.begin();
+  stripGlyphs.begin();
+  stripGlyphs.show();
 
   ledDisplay1.setBrightness(2);
   ledDisplay2.setBrightness(2);
@@ -466,6 +480,8 @@ void loop()
     UpdateMultiplexIndicator();
 
     UpdateManifoldIndicator();
+
+    UpdateGlyphIndicators();
 
     UpdateSynapticGenerator();
 

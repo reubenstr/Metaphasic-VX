@@ -40,6 +40,8 @@ bool genesisFlag;
 int fxOffset;
 bool performMaxIntensityFlag = false;
 bool performUpdateWarningsFlag = false;
+bool glyphStartup = true;
+bool warningStartup = true;
 
 enum SeedState
 {
@@ -68,9 +70,15 @@ void UpdateGlyphIndicator()
 {
   static msTimer timer(1000);
   static bool activeGlyphs[25];
-
+  
   int delay = state == stable ? 2000 : state == warning ? 1250 : state == critical ? 500 : 0;
   timer.setDelay(delay);
+
+  if (glyphStartup)
+  {
+    glyphStartup = false;
+    timer.ForceTrigger();
+  }
 
   if (timer.elapsed())
   {
@@ -118,7 +126,7 @@ void UpdateWarningIndicators()
 {
   static bool warnings[6];
   static flasher flasherWarnings[6];
-  static msTimer timerWarning(3000);
+  static msTimer timerWarning(0);
   static states oldState;
 
   int delayTimer = state == stable ? 5000 : state == warning ? 3000 : state == critical ? 2000 : 0;
@@ -127,6 +135,12 @@ void UpdateWarningIndicators()
   if (oldState != state)
   {
     oldState = state;
+    timerWarning.ForceTrigger();
+  }
+
+  if (warningStartup)
+  {
+    warningStartup = false;
     timerWarning.ForceTrigger();
   }
 
@@ -420,6 +434,10 @@ void CheckActivity()
 
 void ShutdownPanelSystemStatus()
 {
+
+glyphStartup = true;
+warningStartup = true;
+
 stripStates.fill(0, 0, stripStates.numPixels());
   stripStates.show();
 
