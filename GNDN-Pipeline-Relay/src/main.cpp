@@ -272,7 +272,6 @@ void UpdatePWMs()
 
 void ToggleRelay(int relay)
 {
-
   if (relay > 3)
   {
     return;
@@ -304,13 +303,11 @@ void ProcessSubspaceSwitches()
     timerDebounce.resetDelay();
     debounceFlag = true;
 
-    ToggleRelay(random(0, 4));
-    // UpdateSynapticGenerator(true);
+    ToggleRelay(random(0, 4));  
   }
 }
 void UpdateMultiplexIndicator()
 {
-
   static msTimer timer(20);
   static byte wheelPos = 0;
 

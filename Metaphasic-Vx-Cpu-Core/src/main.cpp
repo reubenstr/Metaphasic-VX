@@ -431,6 +431,23 @@ void ShutdownPanel()
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
 
+// For development testing use only.
+void ApplyStatesFromSwitches()
+{
+  if (aiState == skynet)
+  {
+    state = critical;
+  }
+  if (aiState == lcars)
+  {
+    state = stable;
+  }
+  if (aiState == hal)
+  {
+    state = warning;
+  }
+}
+
 void setup()
 {
   delay(500);
@@ -482,12 +499,6 @@ void loop()
 
   CheckControlData(true);
 
-  static msTimer temp(1000);
-  if (temp.elapsed())
-  {
-    // activityFlag = true;
-  }
-
   if (timerSendData.elapsed())
   {
     if (activityFlag)
@@ -509,26 +520,52 @@ void loop()
     mode = automaticActivity;
   }
 
-  // TEMP
-  if (aiState == skynet)
+  // ApplyStatesFromSwitches();
+
+  // State controller
+  static msTimer timerState(10000);
+
+  if (mode == automaticActivity)
   {
-    state = critical;
+    if (timerState.elapsed())
+    {
+      int delay = state == stable ? 10000 : state == warning ? 6000 : state == critical ? 3000 : 0;
+      timerState.setDelayAndReset(random(delay, delay * 2));
+
+      int randMax = state == stable ? 3 : state == warning ? 4 : state == critical ? 5 : 0;
+
+      if (random(0, randMax) == 0)
+      {
+        // Increment state.
+        if (state == stable)
+          state = warning;
+        else if (state == warning)
+          state = critical;
+        else if (state == critical)
+          state = critical;
+      }
+      else
+      {
+        // Decrement state.
+        if (state == stable)
+          state = stable;
+        else if (state == warning)
+          state = stable;
+        else if (state == critical)
+          state = warning;
+      }
+    }
   }
-  if (aiState == lcars)
+  else if (mode == manualActivity)
   {
-    state = stable;
+    // TODO
   }
-  if (aiState == hal)
-  {
-    state = warning;
-  }
-  // TEMP
 
   if (IsPanelBootup(metaphasicVxCpuCore))
   {
     UpdateFlipFlop();
 
-    // UpdateSentience(); // TEMP
+    UpdateSentience();
 
     UpdateSentienceIndicator();
 
