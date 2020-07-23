@@ -77,7 +77,7 @@ void SendControlDataFromMaster(bool performActivity)
 void CheckControlData(bool masterPanel = false)
 {
 	static byte data[10];
-	static int index;
+	static unsigned int index;
 	bool dataReadyFlag = false;
 
 	while (Serial.available())

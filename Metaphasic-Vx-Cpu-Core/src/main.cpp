@@ -1,3 +1,11 @@
+// Metaphasic-VX Encabulator Monitoring & Control System
+//
+// Panel: Metaphasic-VX CPU Core
+// Main panel.
+//
+// Reuben Strangelove
+// Summer 2020
+
 #include <Arduino.h>
 #include "PCA9685.h"           // https://github.com/NachtRaveVL/PCA9685-Arduino
 #include "LedControl.h"        // https://platformio.org/lib/show/914/LedControl
@@ -10,7 +18,6 @@
 #define PIN_MATRIX_DATAIN 4
 #define PIN_MATRIX_LOAD 3
 #define PIN_MATRIX_CLK 2
-
 #define PIN_STRIP_SENTIENCE_DETECTED 5
 #define PIN_BUTTON_ABORT 6
 #define PIN_BUTTON_SKYNET A3
@@ -64,9 +71,7 @@ enum aiStates
   hal
 } aiState;
 
-const int numErrors = 4;
-bool errors[numErrors];
-
+bool errorStates[3];
 bool flipFlop;
 bool sentienceDetected;
 bool abortFlag;
@@ -212,26 +217,13 @@ void UpdatePWMs()
   uint16_t pwms1[16];
 
   // Error states/messages.
-  for (int i = 0; i < 4; i++)
+  for (unsigned int i = 0; i < sizeof(errorStates); i++)
   {
-    if (errors[i])
-    {
-      pwms1[i] = maxPwmRedLed;
-    }
-    else
-    {
-      pwms1[i] = 0;
-    }
+    pwms1[i] = errorStates[i] ? maxPwmRedLed : 0;
   }
 
-  pwms1[12] = 0;
-  pwms1[11] = aiState == skynet ? maxPwmGenericLed : 0;
-  pwms1[10] = aiState == lcars ? maxPwmGenericLed : 0;
-  pwms1[9] = aiState == kitt ? maxPwmGenericLed : 0;
-  pwms1[8] = aiState == hal ? maxPwmGenericLed : 0;
-
-  // TEMP
-  pwms1[9] = mode == manualActivity ? maxPwmGenericLed : 0;
+  // Warning: Unstable Reality Maxtrix
+  pwms1[3] = mode == manualActivity ? maxPwmRedLed : 0;
 
   // FlipFlop
   pwms1[4] = flipFlop ? maxPwmBlueLed : 0;
@@ -244,6 +236,12 @@ void UpdatePWMs()
   static flasher flasherEcc(Pattern::RandomFlash, 2000, maxPwmYellowLed);
   pwms1[6] = flasherEcc.getPwmValue();
 
+  pwms1[8] = aiState == hal ? maxPwmGenericLed : 0;
+  pwms1[9] = aiState == kitt ? maxPwmGenericLed : 0;
+  pwms1[10] = aiState == lcars ? maxPwmGenericLed : 0;
+  pwms1[11] = aiState == skynet ? maxPwmGenericLed : 0;
+  pwms1[12] = 0;
+
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
 
@@ -255,17 +253,13 @@ void CheckButtons()
   buttonKitt.read();
   buttonHal.read();
 
+  // Check for pressed buttons.
   if (buttonAbort.wasPressed())
   {
     if (sentienceDetected)
     {
       abortFlag = true;
     }
-  }
-
-  if (buttonAbort.pressedFor(5000))
-  {
-    CheckStartupSequence(true);
   }
 
   if (buttonSkynet.wasPressed())
@@ -303,6 +297,28 @@ void CheckButtons()
       activityFlag = true;
     }
   }
+
+  // Check for held buttons.
+  const int pressedForDelay = 5000;
+  if (buttonAbort.pressedFor(pressedForDelay))
+  {
+    CheckStartupSequence(true);
+  }
+
+  if (buttonSkynet.pressedFor(pressedForDelay))
+  {
+    state = critical;
+  }
+
+  if (buttonLcars.pressedFor(pressedForDelay))
+  {
+    state = stable;
+  }
+
+  if (buttonHal.pressedFor(pressedForDelay))
+  {
+    state = warning;
+  }
 }
 
 void ProcessErrors()
@@ -313,8 +329,8 @@ void ProcessErrors()
   if (errorTimer.elapsed())
   {
     errorTimer.setDelay(random(delay, delay * 2));
-    int quantity = state == stable ? 1 : state == warning ? 2 : state == critical ? 3 : 0;
-    RandomArrayFill(errors, quantity, sizeof(errors));
+    int quantity = state == stable ? 1 : state == warning ? 2 : state == critical ? 2 : 0;
+    RandomArrayFill(errorStates, quantity, sizeof(errorStates));
   }
 }
 
@@ -494,6 +510,7 @@ void loop()
 {
   static msTimer timerActivityTimeout(8000);
   static msTimer timerSendData(100);
+  static signed int activityCount = 0;
 
   CheckStartupSequence();
 
@@ -503,6 +520,7 @@ void loop()
   {
     if (activityFlag)
     {
+      activityCount++;
       activityFlag = false;
       mode = manualActivity;
       timerActivityTimeout.resetDelay();
@@ -522,11 +540,14 @@ void loop()
 
   // ApplyStatesFromSwitches();
 
-  // State controller
+  // State controller for entire panel.
   static msTimer timerState(10000);
 
   if (mode == automaticActivity)
   {
+
+    activityCount = state == critical ? 11 : state == warning ? 6 : 0;
+
     if (timerState.elapsed())
     {
       int delay = state == stable ? 10000 : state == warning ? 6000 : state == critical ? 3000 : 0;
@@ -558,7 +579,28 @@ void loop()
   }
   else if (mode == manualActivity)
   {
-    // TODO
+
+    static msTimer timerActivityReduction(1000);
+    if (timerActivityReduction.elapsed())
+    {
+      if (--activityCount == -1)
+      {
+        activityCount = 0;
+      }
+    }
+
+    if (activityCount > 9)
+    {
+      state = critical;
+    }
+    else if (activityCount > 4)
+    {
+      state = warning;
+    }
+    else
+    {
+      state = stable;
+    }
   }
 
   if (IsPanelBootup(metaphasicVxCpuCore))

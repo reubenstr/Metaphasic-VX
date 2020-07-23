@@ -623,7 +623,7 @@ void UpdateGenerator()
 
 void UpdateControlStates()
 {
-  static msTimer timerActive(3000);
+  static msTimer timerActive(4000);
   if (timerActive.elapsed())
   {
 
@@ -684,63 +684,37 @@ void ShutdownPanel()
   pwmController1.setChannelsPWM(0, 16, pwms1);
 }
 
-/*
-void CheckStartup()
+void UpdateCenterCircle()
 {
-  if (startupFlag)
+  static msTimer timerFade(5);
+  static byte wheelPos;
+  static msTimer timerIndex(100);
+  static signed int index = 0;
+
+  timerFade.setDelay(6 - map(tuningValues.nanogain, 0, 10, 1, 5));
+  timerIndex.setDelay(101 - map(tuningValues.nanogain, 0, 10, 25, 100));
+
+  if (timerIndex.elapsed())
   {
-    uint16_t pwms1[16];
-
-    startupFlag = false;
-
-    lcd.setCursor(0, 0);
-    lcd.print(F("System Startup  "));
-    lcd.setCursor(0, 1);
-    lcd.print(F("                "));
-
-    for (int i = 0; i < 5; i++)
+    if (--index < 0)
     {
-      stripVortex1.fill(Color(255, 0, 0), 0, stripVortex1.numPixels());
-      stripVortex2.fill(Color(0, 255, 0), 0, stripVortex2.numPixels());
-      stripVortex3.fill(Color(0, 0, 255), 0, stripVortex3.numPixels());
-      stripCircle.fill(Color(0, 255, 0), 0, stripCircle.numPixels());
-      stripGenerator.fill(Color(0, 255, 0), 0, stripGenerator.numPixels());
-      stripVortex1.show();
-      stripVortex2.show();
-      stripVortex3.show();
-      stripCircle.show();
-      stripGenerator.show();
-
-      for (int j = 0; j < 16; j++)
-      {
-        pwms1[j] = maxPwmGenericLed;
-      }
-      pwmController1.setChannelsPWM(0, 16, pwms1);
-
-      delay(startupFlashDelay);
-
-      stripVortex1.fill(Color(0, 0, 0), 0, stripVortex1.numPixels());
-      stripVortex2.fill(Color(0, 0, 0), 0, stripVortex2.numPixels());
-      stripVortex3.fill(Color(0, 0, 0), 0, stripVortex3.numPixels());
-      stripCircle.fill(Color(0, 0, 0), 0, stripCircle.numPixels());
-      stripGenerator.fill(Color(0, 0, 0), 0, stripGenerator.numPixels());
-      stripVortex1.show();
-      stripVortex2.show();
-      stripVortex3.show();
-      stripCircle.show();
-      stripGenerator.show();
-
-      for (int j = 0; j < 16; j++)
-      {
-        pwms1[j] = 0;
-      }
-      pwmController1.setChannelsPWM(0, 16, pwms1);
-
-      delay(startupFlashDelay);
+      index = stripCircle.numPixels() -1;
     }
+
+    wheelPos += 1 + tuningValues.correction;
+    stripCircle.setPixelColor(index, Wheel(wheelPos));
+  }
+
+  if (timerFade.elapsed())
+  {
+    for (int i = 0; i < (int)stripCircle.numPixels(); i++)
+    {
+      stripCircle.setPixelColor(i, Fade(stripCircle.getPixelColor(i), 3));
+    }
+
+    stripCircle.show();
   }
 }
-*/
 
 void setup()
 {
@@ -816,20 +790,9 @@ void loop()
     if (mode == automaticActivity)
     {
       UpdateControlStates();
-    }    
-
-    static msTimer timerCircle(5);
-    static byte wheelPos;
-    if (timerCircle.elapsed())
-    {
-      stripCircle.setBrightness(127);
-      wheelPos++;
-      for (int i = 0; i < (int)stripCircle.numPixels(); i++)
-      {
-        stripCircle.setPixelColor(i, Wheel(((i * 256 / stripCircle.numPixels()) + wheelPos) & 255));
-      }
-      stripCircle.show();
     }
+
+    UpdateCenterCircle();
   }
   else
   {

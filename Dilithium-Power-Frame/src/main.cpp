@@ -17,6 +17,7 @@
 #define TFT_CS 6
 #define TFT_RST -1
 #define TFT_DC 8
+
 // Hardware SPI : MOSI = pin 11, SCLK = pin 13
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
@@ -206,6 +207,21 @@ void ShutdownPanel()
 
 void SetupTft()
 {
+  
+tft.fillScreen(ST77XX_BLACK);
+
+  tft.setCursor(5, 6);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setTextWrap(true);
+  tft.setTextSize(2);
+  tft.print("STATUS: ");
+
+  tft.setCursor(5, 115);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setTextWrap(true);
+  tft.setTextSize(2);
+  tft.print("INTENSITY:");
+
   // Draw border.
   uint16_t color = ST77XX_WHITE;
   tft.drawLine(0, 0, 0, tft.height() - 1, color);
@@ -230,22 +246,12 @@ void setup(void)
   stripDistribution.begin();
   stripLambda.begin();
 
+  delay(500);
+
   tft.init(135, 240);
 
   tft.setRotation(3);
-  tft.fillScreen(ST77XX_BLACK);
-
-  tft.setCursor(5, 6);
-  tft.setTextColor(ST77XX_WHITE);
-  tft.setTextWrap(true);
-  tft.setTextSize(2);
-  tft.print("STATUS: ");
-
-  tft.setCursor(5, 115);
-  tft.setTextColor(ST77XX_WHITE);
-  tft.setTextWrap(true);
-  tft.setTextSize(2);
-  tft.print("INTENSITY:");
+  
 }
 
 void loop()
