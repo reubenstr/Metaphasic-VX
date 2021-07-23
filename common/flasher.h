@@ -1,6 +1,8 @@
 
 // Crude LED flashing pattern generator.
 // Not intended for precise timer.
+//
+// Version 1.0
 
 #ifndef FLASHER_H
 #define FLASHER_H
@@ -131,6 +133,7 @@ public:
                     sinIndex = 0;
                     _endOfCycle = true;
                 }
+				// TODO: use sin look up table.
                 _pwmValue = _maxPwm * sin(radians(sinIndex));
             }
             else if (_pattern == Pattern::OnOff)

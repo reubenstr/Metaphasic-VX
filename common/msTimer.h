@@ -1,5 +1,13 @@
+// msTimer
+// 
+// In loop, non-blocking, timer.
+//
+// Version 1.0
+
+
 #ifndef MS_TIMER_H
 #define MS_TIMER_H
+
 
 #include <Arduino.h>
 
